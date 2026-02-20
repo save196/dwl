@@ -1,7 +1,7 @@
 # dwl - dwm for Wayland
 
-Join us on our [Discord server]  
-Or Matrix: [#dwl-official:matrix.org]  
+Join us on our [Discord server]
+Or Matrix: [#dwl-official:matrix.org]
 Or on our IRC channel: [#dwl on Libera Chat]
 
 dwl is a compact, hackable compositor for [Wayland] based on [wlroots]. It is
@@ -31,7 +31,7 @@ depend on functionality that is not in the current release of `wlroots`.
 The `wlroots-next` branch is built against the git version of [wlroots], which
 is unstable and changes frequently. PRs requiring functionality from the git
 version of `wlroots` should target this branch.
-  
+
 ### Building dwl
 dwl has the following dependencies:
 - libinput
