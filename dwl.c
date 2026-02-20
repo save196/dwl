@@ -2368,6 +2368,7 @@ mapnotify(struct wl_listener *listener, void *data)
 	Client *w, *c = wl_container_of(listener, c, map);
 	Monitor *m;
 	int i;
+	Client *focused = NULL;
 
 	struct wlr_ext_foreign_toplevel_handle_v1_state foreign_toplevel_state = {
 		.app_id = client_get_appid(c),
@@ -2413,7 +2414,11 @@ mapnotify(struct wl_listener *listener, void *data)
 	}
 
 	/* Insert this client into client lists. */
-	wl_list_insert(&clients, &c->link);
+	focused = focustop(selmon);
+	if (!focused || focused->isfloating)
+		wl_list_insert(&clients, &c->link);
+	else
+		wl_list_insert(&focused->link, &c->link);
 	wl_list_insert(&fstack, &c->flink);
 
 	c->foreign_toplevel_handle = wlr_ext_foreign_toplevel_handle_v1_create(
