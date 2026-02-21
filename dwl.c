@@ -3199,6 +3199,9 @@ updatemons(struct wl_listener *listener, void *data)
 	wlr_scene_node_set_position(&locked_bg->node, sgeom.x, sgeom.y);
 	wlr_scene_rect_set_size(locked_bg, sgeom.width, sgeom.height);
 
+	if (stext[0] == '\0')
+		strncpy(stext, "dwl-"VERSION, sizeof(stext));
+
 	wl_list_for_each(m, &mons, link) {
 		if (!m->wlr_output->enabled)
 			continue;
@@ -3236,6 +3239,9 @@ updatemons(struct wl_listener *listener, void *data)
 		if (!selmon) {
 			selmon = m;
 		}
+
+		updatebar(m);
+		drawbar(m);
 	}
 
 	if (selmon && selmon->wlr_output->enabled) {
@@ -3249,13 +3255,6 @@ updatemons(struct wl_listener *listener, void *data)
 					wlr_seat_get_keyboard(seat));
 			client_activate_surface(selmon->lock_surface->surface, 1);
 		}
-	}
-
-	if (stext[0] == '\0')
-		strncpy(stext, "dwl-"VERSION, sizeof(stext));
-	wl_list_for_each(m, &mons, link) {
-		updatebar(m);
-		drawbar(m);
 	}
 
 	/* FIXME: figure out why the cursor image is at 0,0 after turning all
