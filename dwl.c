@@ -290,7 +290,6 @@ static void closemon(Monitor *m);
 static void commitlayersurfacenotify(struct wl_listener *listener, void *data);
 static void commitnotify(struct wl_listener *listener, void *data);
 static void commitpopup(struct wl_listener *listener, void *data);
-static int countclients(Monitor *m);
 static void createdecoration(struct wl_listener *listener, void *data);
 static void createidleinhibitor(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_keyboard *keyboard);
@@ -341,7 +340,6 @@ static void motionnotify(uint32_t time, struct wlr_input_device *device, double 
 		double sy, double sx_unaccel, double sy_unaccel);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void moveresize(const Arg *arg);
-static int needsborder(Client *c);
 static void outputmgrapply(struct wl_listener *listener, void *data);
 static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test);
 static void outputmgrtest(struct wl_listener *listener, void *data);
@@ -1077,17 +1075,6 @@ commitpopup(struct wl_listener *listener, void *data)
 	wlr_xdg_popup_unconstrain_from_box(popup, &box);
 	wl_list_remove(&listener->link);
 	free(listener);
-}
-
-int
-countclients(Monitor *m)
-{
-	unsigned int n = 0;
-	Client *c;
-	wl_list_for_each(c, &clients, link)
-		if (VISIBLEON(c, m) && !c->isfloating && !c->isfullscreen)
-			n++;
-	return n;
 }
 
 void
@@ -2084,6 +2071,7 @@ monocle(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
+		c->bw = 0;
 		resize(c, m->w, 0);
 		n++;
 	}
@@ -2233,14 +2221,6 @@ moveresize(const Arg *arg)
 		wlr_cursor_set_xcursor(cursor, cursor_mgr, "se-resize");
 		break;
 	}
-}
-
-int
-needsborder(Client *c) {
-	return ((countclients(c->mon) > 1
-			&& c->mon->lt[c->mon->sellt]->arrange != monocle)
-		|| c->isfloating)
-		&& !c->isfullscreen;
 }
 
 void
@@ -2440,7 +2420,6 @@ resize(Client *c, struct wlr_box geo, int interact)
 
 	client_set_bounds(c, geo.width, geo.height);
 	c->geom = geo;
-	c->bw = needsborder(c) ? borderpx : 0;
 	applybounds(c, bbox);
 
 	/* Update scene-graph, including borders */
@@ -2553,6 +2532,8 @@ setfloating(Client *c, int floating)
 {
 	Client *p = client_get_parent(c);
 	c->isfloating = floating;
+	if (!c->isfullscreen)
+		c->bw = borderpx;
 	/* If in floating layout do not change the client's layer */
 	if (!c->mon || !client_surface(c)->mapped || !c->mon->lt[c->mon->sellt]->arrange)
 		return;
@@ -2965,6 +2946,7 @@ tile(Monitor *m)
 {
 	unsigned int mw, my, ty;
 	int i, n = 0;
+	int showborders = 1;
 	Client *c;
 
 	wl_list_for_each(c, &clients, link)
@@ -2972,6 +2954,9 @@ tile(Monitor *m)
 			n++;
 	if (n == 0)
 		return;
+
+	if (n == 1)
+		showborders = 0;
 
 	if (n > m->nmaster)
 		mw = m->nmaster ? (int)roundf(m->w.width * m->mfact) : 0;
@@ -2981,6 +2966,7 @@ tile(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
+		c->bw = showborders ? borderpx : 0;
 		if (i < m->nmaster) {
 			resize(c, (struct wlr_box){.x = m->w.x, .y = m->w.y + my, .width = mw,
 				.height = (m->w.height - my) / (MIN(n, m->nmaster) - i)}, 0);
