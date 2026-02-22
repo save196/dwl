@@ -277,6 +277,7 @@ static void arrange(Monitor *m);
 static void arrangelayer(Monitor *m, struct wl_list *list,
 		struct wlr_box *usable_area, int exclusive);
 static void arrangelayers(Monitor *m);
+static void assignkeymap(struct wlr_keyboard *keyboard);
 static void axisnotify(struct wl_listener *listener, void *data);
 static bool baracceptsinput(struct wlr_scene_buffer *buffer, double *sx, double *sy);
 static void bufdestroy(struct wlr_buffer *buffer);
@@ -330,6 +331,7 @@ static void fullscreennotify(struct wl_listener *listener, void *data);
 static void gpureset(struct wl_listener *listener, void *data);
 static void handlesig(int signo);
 static void incnmaster(const Arg *arg);
+static void incxkbrules(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
 static int keybinding(uint32_t mods, xkb_keysym_t sym);
 static void keypress(struct wl_listener *listener, void *data);
@@ -442,6 +444,7 @@ static struct wlr_session_lock_v1 *cur_lock;
 
 static struct wlr_seat *seat;
 static KeyboardGroup *kb_group;
+static unsigned int kblayout = 0;
 static unsigned int cursor_mode;
 static Client *grabc;
 static int grabcx, grabcy; /* client-relative */
@@ -668,6 +671,33 @@ arrangelayers(Monitor *m)
 			return;
 		}
 	}
+}
+
+void
+assignkeymap(struct wlr_keyboard *keyboard) {
+	FILE *f;
+
+	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+	struct xkb_keymap *keymap = xkb_keymap_new_from_names(context, &xkb_rules[kblayout],
+					XKB_KEYMAP_COMPILE_NO_FLAGS);
+
+	if (!keymap)
+		die("failed to compile keymap");
+
+	wlr_keyboard_set_keymap(keyboard, keymap);
+	xkb_keymap_unref(keymap);
+	xkb_context_unref(context);
+
+	// Save current layout to kblayout_file
+	if (*kblayout_file && (f = fopen(kblayout_file, "w"))) {
+		fputs(xkb_keymap_layout_get_name(keyboard->keymap, keyboard->modifiers.group), f);
+		fclose(f);
+
+		// Run kblayout_cmd
+		if (kblayout_cmd[0])
+			spawn(&(Arg){ .v = (const void *)kblayout_cmd });
+	}
+
 }
 
 void
@@ -1130,21 +1160,11 @@ KeyboardGroup *
 createkeyboardgroup(void)
 {
 	KeyboardGroup *group = ecalloc(1, sizeof(*group));
-	struct xkb_context *context;
-	struct xkb_keymap *keymap;
 
 	group->wlr_group = wlr_keyboard_group_create();
 	group->wlr_group->data = group;
 
-	/* Prepare an XKB keymap and assign it to the keyboard group. */
-	context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-	if (!(keymap = xkb_keymap_new_from_names(context, &xkb_rules,
-				XKB_KEYMAP_COMPILE_NO_FLAGS)))
-		die("failed to compile keymap");
-
-	wlr_keyboard_set_keymap(&group->wlr_group->keyboard, keymap);
-	xkb_keymap_unref(keymap);
-	xkb_context_unref(context);
+	assignkeymap(&group->wlr_group->keyboard);
 
 	wlr_keyboard_set_repeat_info(&group->wlr_group->keyboard, repeat_rate, repeat_delay);
 
@@ -1844,6 +1864,13 @@ incnmaster(const Arg *arg)
 		return;
 	selmon->nmaster = selmon->pertag->nmasters[selmon->pertag->curtag] = MAX(selmon->nmaster + arg->i, 0);
 	arrange(selmon);
+}
+
+void
+incxkbrules(const Arg *arg)
+{
+	kblayout = (kblayout + arg->i) % LENGTH(xkb_rules);
+	assignkeymap(&kb_group->wlr_group->keyboard);
 }
 
 void
