@@ -24,6 +24,15 @@ static uint32_t colors[][3]                = {
 	[SchemeUrg]  = { 0,          0,          0x770000ff },
 };
 
+/* scratchpads comands */
+const char *spcmd0[] = { "kitty", "--class", "vimwiki", "-T", "vimwiki", "-o", "initial_window_width=1300", "-o", "initial_window_height=800", "nvim", "+VimwikiIndex", NULL };
+const char *spcmd1[] = { "keepassxc", NULL };
+
+static const char **scratchpads[] = {
+	spcmd0,
+	spcmd1
+};
+
 /* tagging */
 static char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 
@@ -31,10 +40,9 @@ static char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 static int log_level = WLR_ERROR;
 
 static const Rule rules[] = {
-	/* app_id             title       tags mask     isfloating   monitor */
-	{ "Gimp_EXAMPLE",     NULL,       0,            1,           -1 }, /* Start on currently visible tags floating, not tiled */
-	{ "firefox_EXAMPLE",  NULL,       1 << 8,       0,           -1 }, /* Start on ONLY tag "9" */
-    /* default/example rule: can be changed but cannot be eliminated; at least one rule must exist */
+	/* app_id                    title       tags mask     isfloating   monitor scratchpadid */
+	{ NULL,                      "vimwiki",  0,            1,           -1,     0   },
+	{ "org.keepassxc.KeePassXC", NULL,       0,            0,           -1,     1   },
 };
 
 /* layout(s) */
@@ -139,6 +147,9 @@ static const Key keys[] = {
 	/* modifier                  key                  function          argument */
 	{ MODKEY,                    XKB_KEY_p,           spawn,            {.v = menucmd} },
 	{ MODKEY,                    XKB_KEY_Return,      spawn,            {.v = termcmd} },
+	{ MODKEY,                    XKB_KEY_section,     togglescratch,    {.i = 0 } },
+	{ MODKEY,                    XKB_KEY_grave,       togglescratch,    {.i = 0 } },
+	{ MODKEY,                    XKB_KEY_x,           togglescratch,    {.i = 1 } },
 	{ MODKEY,                    XKB_KEY_w,           spawn,            SHCMD("$BROWSER") },
 	{ MODKEY,                    XKB_KEY_s,           spawn,            SHCMD("spotify") },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_BackSpace,   spawn,            SHCMD("dmenu_power") },

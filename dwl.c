@@ -150,6 +150,7 @@ typedef struct {
 	unsigned int bw;
 	uint32_t tags;
 	int isfloating, isurgent, isfullscreen;
+	int scratchpadid;
 	uint32_t resize; /* configure serial of a pending resize */
 } Client;
 
@@ -259,6 +260,7 @@ typedef struct {
 	uint32_t tags;
 	int isfloating;
 	int monitor;
+	int scratchpadid;
 } Rule;
 
 typedef struct {
@@ -380,6 +382,7 @@ static void togglebar(const Arg *arg);
 static void togglefloating(const Arg *arg);
 static void togglefullscreen(const Arg *arg);
 static void togglegaps(const Arg *arg);
+static void togglescratch(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void unlocksession(struct wl_listener *listener, void *data);
@@ -547,14 +550,17 @@ applyrules(Client *c)
 	int i;
 	const Rule *r;
 	Monitor *mon = selmon, *m;
+	Client *cli;
 
 	appid = client_get_appid(c);
 	title = client_get_title(c);
+	c->scratchpadid = -1;
 
 	for (r = rules; r < END(rules); r++) {
 		if ((!r->title || strstr(title, r->title))
 				&& (!r->id || strstr(appid, r->id))) {
 			c->isfloating = r->isfloating;
+			c->scratchpadid = r->scratchpadid;
 			newtags |= r->tags;
 			i = 0;
 			wl_list_for_each(m, &mons, link) {
@@ -565,6 +571,20 @@ applyrules(Client *c)
 	}
 
 	c->isfloating |= client_is_float_type(c);
+	if (c->scratchpadid != -1)
+		wl_list_for_each(m, &mons, link) {
+			wl_list_for_each(cli, &clients, link)
+				if (cli->scratchpadid == c->scratchpadid && cli != c) {
+					c->scratchpadid = -1;
+					break;
+				}
+			if (c->scratchpadid == -1)
+				break;
+		}
+	if (c->scratchpadid != -1 && c->isfloating) {
+		c->geom.x = mon->w.x + (mon->w.width / 2 - c->geom.width / 2);
+		c->geom.y = mon->w.y + (mon->w.height / 2 - c->geom.height / 2);
+	}
 	setmon(c, mon, newtags);
 }
 
@@ -3085,6 +3105,39 @@ togglegaps(const Arg *arg)
 {
 	selmon->gaps = !selmon->gaps;
 	arrange(selmon);
+}
+
+void
+togglescratch(const Arg *arg)
+{
+	Client *c;
+	Monitor *m;
+	Arg scratchpadcmd = {.v = scratchpads[arg->i]};
+	unsigned int found = 0;
+
+	/* search for first window that matches the scratchpadid */
+	wl_list_for_each(m, &mons, link) {
+		wl_list_for_each(c, &clients, link)
+			if (c->scratchpadid == arg->i) {
+				found = 1;
+				break;
+			}
+		if (found)
+			break;
+	}
+
+	if (found) {
+		c->tags = VISIBLEON(c, selmon) ? 0 : selmon->tagset[selmon->seltags];
+		if (c->isfloating && c->tags != 0) {
+			c->geom.x = selmon->w.x + (selmon->w.width / 2 - c->geom.width / 2);
+			c->geom.y = selmon->w.y + (selmon->w.height / 2 - c->geom.height / 2);
+		}
+		setmon(c, selmon, 0);
+		focusclient(c->tags == 0 ? focustop(selmon) : c, 1);
+		arrange(selmon);
+	} else {
+		spawn(&scratchpadcmd);
+	}
 }
 
 void
