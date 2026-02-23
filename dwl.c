@@ -3628,8 +3628,8 @@ usage:
 static void
 bstack(Monitor *m)
 {
-	unsigned int w, h, mh, mx, tx, ty, tw;
-	int i, n = 0, showborders = 1;
+	unsigned int w, r, mh, mx, th = 0, tx, ty = 0;
+	int i, n = 0, showborders = 0, gaps = 0;
 	Client *c;
 
 	wl_list_for_each(c, &clients, link)
@@ -3638,34 +3638,39 @@ bstack(Monitor *m)
 	if (n == 0)
 		return;
 
-	if (n == 1)
-		showborders = 0;
-
-	if (n > m->nmaster) {
-		mh = (int)round(m->nmaster ? m->mfact * m->w.height : 0);
-		tw = m->w.width / (n - m->nmaster);
-		ty = m->w.y + mh;
-	} else {
-		mh = m->w.height;
-		tw = m->w.width;
-		ty = m->w.y;
+	if (n > 1) {
+		gaps = gappx * m->gaps;
+		showborders = 1;
 	}
 
-	i = mx = 0;
-	tx = m-> w.x;
+	if (n > m->nmaster) {
+		mh = m->nmaster ? (int)roundf(m->mfact * (m->w.height - 3 * gaps)) : 0;
+		th = m->w.height - mh - 2 * gaps;
+		ty = mh + gaps;
+		if (m->nmaster) {
+			th -= gaps;
+			ty += gaps;
+		}
+	} else {
+		mh = m->w.height - 2 * gaps;
+	}
+
+	i = 0;
+	mx = tx = gaps;
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
 		c->bw = showborders ? borderpx : 0;
 		if (i < m->nmaster) {
-			w = (m->w.width - mx) / (MIN(n, m->nmaster) - i);
-			resize(c, (struct wlr_box) { .x = m->w.x + mx, .y = m->w.y, .width = w, .height = mh }, 0);
-			mx += c->geom.width;
+			r = MIN(n, m->nmaster) - i;
+			w = (m->w.width - mx - gaps * r) / r;
+			resize(c, (struct wlr_box) { .x = m->w.x + mx, .y = m->w.y + gaps, .width = w, .height = mh }, 0);
+			mx += c->geom.width + gaps;
 		} else {
-			h = m->w.height - mh;
-			resize(c, (struct wlr_box) { .x = tx, .y = ty, .width = tw, .height = h }, 0);
-			if (tw != m->w.width)
-				tx += c->geom.width;
+			r = n - i;
+			w = (m->w.width - tx - gaps * r) / r;
+			resize(c, (struct wlr_box) { .x = m->w.x + tx, .y = m->w.y + ty, .width = w, .height = th }, 0);
+			tx += c->geom.width + gaps;
 		}
 		i++;
 	}
@@ -3673,8 +3678,8 @@ bstack(Monitor *m)
 
 static void
 bstackhoriz(Monitor *m) {
-	unsigned int w, mh, mx, tx, ty, th;
-	int i, n = 0, showborders = 1;
+	unsigned int h, w, r, mh, mx, tw = 0, tx, ty = 0;
+	int i, n = 0, showborders = 0, gaps = 0;
 	Client *c;
 
 	wl_list_for_each(c, &clients, link)
@@ -3683,32 +3688,37 @@ bstackhoriz(Monitor *m) {
 	if (n == 0)
 		return;
 
-	if (n == 1)
-		showborders = 0;
-
-	if (n > m->nmaster) {
-		mh = (int)round(m->nmaster ? m->mfact * m->w.height : 0);
-		th = (m->w.height - mh) / (n - m->nmaster);
-		ty = m->w.y + mh;
-	} else {
-		th = mh = m->w.height;
-		ty = m->w.y;
+	if (n > 1) {
+		gaps = gappx * m->gaps;
+		showborders = 1;
 	}
 
-	i = mx = 0;
-	tx = m-> w.x;
+	if (n > m->nmaster) {
+		mh = m->nmaster ? (int)roundf(m->mfact * (m->w.height - 3 * gaps)) : 0;
+		tw = m->w.width - 2 * gaps;
+		ty = mh + gaps;
+		if (m->nmaster)
+			ty += gaps;
+	} else {
+		mh = m->w.height - 2 * gaps;
+	}
+
+	i = 0;
+	mx = tx = gaps;
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
 		c->bw = showborders ? borderpx : 0;
 		if (i < m->nmaster) {
-			w = (m->w.width - mx) / (MIN(n, m->nmaster) - i);
-			resize(c, (struct wlr_box) { .x = m->w.x + mx, .y = m->w.y, .width = w, .height = mh }, 0);
-			mx += c->geom.width;
+			r = MIN(n, m->nmaster) - i;
+			w = (m->w.width - mx - gaps * r) / r;
+			resize(c, (struct wlr_box) { .x = m->w.x + mx, .y = m->w.y + gaps, .width = w, .height = mh }, 0);
+			mx += c->geom.width + gaps;
 		} else {
-			resize(c, (struct wlr_box) { .x = tx, .y = ty, .width = m->w.width, .height = th }, 0);
-			if (th != m->w.height)
-				ty += c->geom.height;
+			r = n - i;
+			h = (m->w.height - ty - gaps * r) / r;
+			resize(c, (struct wlr_box) { .x = m->w.x + tx, .y = m->w.y + ty, .width = tw, .height = h }, 0);
+			ty += c->geom.height + gaps;
 		}
 		i++;
 	}
