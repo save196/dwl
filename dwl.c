@@ -2977,9 +2977,8 @@ tagmon(const Arg *arg)
 void
 tile(Monitor *m)
 {
-	unsigned int h, r, e = m->gaps, mw, my, ty;
-	int i, n = 0;
-	int showborders = 1;
+	unsigned int h, r, mw, my, tw = 0, tx = 0, ty;
+	int i, n = 0, showborders = 0, gaps = 0;
 	Client *c;
 
 	wl_list_for_each(c, &clients, link)
@@ -2988,33 +2987,40 @@ tile(Monitor *m)
 	if (n == 0)
 		return;
 
-	if (n == 1) {
-		e = 0;
-		showborders = 0;
+	if (n > 1) {
+		gaps = gappx * m->gaps;
+		showborders = 1;
 	}
 
-	if (n > m->nmaster)
-		mw = m->nmaster ? (int)roundf((m->w.width + gappx*e) * m->mfact) : 0;
-	else
-		mw = m->w.width;
+	if (n > m->nmaster) {
+		mw = m->nmaster ? (int)roundf(m->mfact * (m->w.width - 3 * gaps)) : 0;
+		tw = m->w.width - mw - 2 * gaps;
+		tx = mw + gaps;
+		if (m->nmaster) {
+			tw -= gaps;
+			tx += gaps;
+		}
+	} else
+		mw = m->w.width - 2 * gaps;
+
 	i = 0;
-	my = ty = gappx*e;
+	my = ty = gaps;
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
 		c->bw = showborders ? borderpx : 0;
 		if (i < m->nmaster) {
 			r = MIN(n, m->nmaster) - i;
-			h = (m->w.height - my - gappx*e - gappx*e * (r - 1)) / r;
-			resize(c, (struct wlr_box){.x = m->w.x + gappx*e, .y = m->w.y + my,
-				.width = mw - 2*gappx*e, .height = h}, 0);
-			my += c->geom.height + gappx*e;
+			h = (m->w.height - my - gaps * r) / r;
+			resize(c, (struct wlr_box){.x = m->w.x + gaps, .y = m->w.y + my,
+				.width = mw, .height = h}, 0);
+			my += c->geom.height + gaps;
 		} else {
 			r = n - i;
-			h = (m->w.height - ty - gappx*e - gappx*e * (r - 1)) / r;
-			resize(c, (struct wlr_box){.x = m->w.x + mw, .y = m->w.y + ty,
-				.width = m->w.width - mw - gappx*e, .height = h}, 0);
-			ty += c->geom.height + gappx*e;
+			h = (m->w.height - ty - gaps * r) / r;
+			resize(c, (struct wlr_box){.x = m->w.x + tx, .y = m->w.y + ty,
+				.width = tw, .height = h}, 0);
+			ty += c->geom.height + gaps;
 		}
 		i++;
 	}
