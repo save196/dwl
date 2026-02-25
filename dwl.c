@@ -572,15 +572,11 @@ applyrules(Client *c)
 
 	c->isfloating |= client_is_float_type(c);
 	if (c->scratchpadid != -1)
-		wl_list_for_each(m, &mons, link) {
-			wl_list_for_each(cli, &clients, link)
-				if (cli->scratchpadid == c->scratchpadid && cli != c) {
-					c->scratchpadid = -1;
-					break;
-				}
-			if (c->scratchpadid == -1)
+		wl_list_for_each(cli, &clients, link)
+			if (cli->scratchpadid == c->scratchpadid && cli != c) {
+				c->scratchpadid = -1;
 				break;
-		}
+			}
 	if (c->scratchpadid != -1 && c->isfloating) {
 		c->geom.x = mon->w.x + (mon->w.width / 2 - c->geom.width / 2);
 		c->geom.y = mon->w.y + (mon->w.height / 2 - c->geom.height / 2);
@@ -3111,20 +3107,15 @@ void
 togglescratch(const Arg *arg)
 {
 	Client *c;
-	Monitor *m;
 	Arg scratchpadcmd = {.v = scratchpads[arg->i]};
 	unsigned int found = 0;
 
 	/* search for first window that matches the scratchpadid */
-	wl_list_for_each(m, &mons, link) {
-		wl_list_for_each(c, &clients, link)
-			if (c->scratchpadid == arg->i) {
-				found = 1;
-				break;
-			}
-		if (found)
+	wl_list_for_each(c, &clients, link)
+		if (c->scratchpadid == arg->i) {
+			found = 1;
 			break;
-	}
+		}
 
 	if (found) {
 		c->tags = VISIBLEON(c, selmon) ? 0 : selmon->tagset[selmon->seltags];
