@@ -389,6 +389,7 @@ static void moveresize(const Arg *arg);
 static void outputmgrapply(struct wl_listener *listener, void *data);
 static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test);
 static void outputmgrtest(struct wl_listener *listener, void *data);
+static void placefullscreenbg(Client *c);
 static void pointerfocus(Client *c, LayerSurface* l, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void powermgrsetmode(struct wl_listener *listener, void *data);
@@ -628,14 +629,10 @@ void
 applygeom(Client *c)
 {
 	struct wlr_box clip;
-	Client *p = client_get_parent(c);
 
-	/* We move all floating clients to LyrTile while in floating layout
-	 * to avoid "real" floating clients be always on top */
-	wlr_scene_node_reparent(&c->scene->node, layers[c->isfullscreen
-			|| (p && p->isfullscreen) ? LyrFS
-			: c->isfloating && c->mon->lt[c->mon->sellt]->arrange ? LyrFloat
-			: LyrTile]);
+	/* All clients, including floating and fullscreen ones, share LyrTile
+	 * so any of them can be raised above the others */
+	wlr_scene_node_reparent(&c->scene->node, layers[LyrTile]);
 
 	c->current = c->geom;
 	if (c->snapshot) {
@@ -1575,7 +1572,7 @@ createmon(struct wl_listener *listener, void *data)
 	 *
 	 */
 	/* updatemons() will resize and set correct position */
-	m->fullscreen_bg = wlr_scene_rect_create(layers[LyrFS], 0, 0, fullscreen_bg);
+	m->fullscreen_bg = wlr_scene_rect_create(layers[LyrTile], 0, 0, fullscreen_bg);
 	wlr_scene_node_set_enabled(&m->fullscreen_bg->node, 0);
 
 	/* Adds this to the output layout in the order it was configured.
@@ -2038,6 +2035,9 @@ focusclient(Client *c, LayerSurface *l, int lift)
 	if (c && lift)
 		wlr_scene_node_raise_to_top(&c->scene->node);
 
+	if (c && c->mon && c->isfullscreen && !client_is_x11(c))
+		placefullscreenbg(c);
+
 	if (c && client_surface(c) == old)
 		return;
 
@@ -2121,7 +2121,7 @@ focusstack(const Arg *arg)
 {
 	/* Focus the next or previous client (in tiling order) on selmon */
 	Client *c, *sel = focustop(selmon);
-	if (!sel || (sel->isfullscreen && !client_has_children(sel)))
+	if (!sel)
 		return;
 	if (arg->i > 0) {
 		wl_list_for_each(c, &sel->link, link) {
@@ -2435,8 +2435,7 @@ mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	Client *p = NULL;
-	Client *w, *c = wl_container_of(listener, c, map);
-	Monitor *m;
+	Client *c = wl_container_of(listener, c, map);
 	int i;
 	Client *focused = NULL;
 
@@ -2463,7 +2462,7 @@ mapnotify(struct wl_listener *listener, void *data)
 		wlr_scene_node_set_position(&c->scene->node, c->geom.x, c->geom.y);
 		if (client_wants_focus(c))
 			focusclient(c, NULL, 1);
-		goto unset_fullscreen;
+		return;
 	}
 
 	for (i = 0; i < 4; i++) {
@@ -2513,16 +2512,6 @@ mapnotify(struct wl_listener *listener, void *data)
 		applyrules(c);
 	}
 	drawbars();
-
-unset_fullscreen:
-	m = c->mon ? c->mon : xytomon(c->geom.x, c->geom.y);
-	wl_list_for_each(w, &clients, link) {
-		if (w != c && w != p && w->isfullscreen && m == w->mon && (w->tags & c->tags)) {
-			setfullscreen(w, 0);
-			/* setmon() focused w because focustop() prefers fullscreen clients */
-			focusclient(focustop(selmon), NULL, 1);
-		}
-	}
 }
 
 void
@@ -2835,6 +2824,15 @@ outputmgrtest(struct wl_listener *listener, void *data)
 }
 
 void
+placefullscreenbg(Client *c)
+{
+	if (c->scene->node.parent == c->mon->fullscreen_bg->node.parent)
+		wlr_scene_node_place_below(&c->mon->fullscreen_bg->node, &c->scene->node);
+	else
+		wlr_scene_node_raise_to_top(&c->mon->fullscreen_bg->node);
+}
+
+void
 pointerfocus(Client *c, LayerSurface *l, struct wlr_surface *surface, double sx, double sy,
 		uint32_t time)
 {
@@ -3120,6 +3118,7 @@ setfullscreen(Client *c, int fullscreen)
 		if (!wasfullscreen)
 			c->prev = c->geom;
 		resize(c, c->mon->m, 0);
+		focusclient(c, NULL, 1);
 	} else if (wasfullscreen) {
 		/* restore previous size instead of arrange for floating windows since
 		 * client positions are set by the user and cannot be recalculated */
@@ -3755,7 +3754,7 @@ void
 transactionapply(void)
 {
 	struct wlr_scene_node **ghost;
-	Client *c, *p;
+	Client *c, *fs;
 	Monitor *m;
 
 	wl_event_source_timer_update(transaction_timer, 0);
@@ -3777,10 +3776,18 @@ transactionapply(void)
 	}
 
 	wl_list_for_each(m, &mons, link) {
-		if (m->wlr_output->enabled)
-			wlr_scene_node_set_enabled(&m->fullscreen_bg->node,
-					(c = focustop(m)) && (c->isfullscreen
-					|| ((p = client_get_parent(c)) && p->isfullscreen)));
+		if (!m->wlr_output->enabled)
+			continue;
+		fs = NULL;
+		wl_list_for_each(c, &fstack, flink) {
+			if (c->isfullscreen && VISIBLEON(c, m) && !client_is_x11(c)) {
+				fs = c;
+				break;
+			}
+		}
+		if (fs)
+			placefullscreenbg(fs);
+		wlr_scene_node_set_enabled(&m->fullscreen_bg->node, fs != NULL);
 	}
 
 	motionnotify(0, NULL, 0, 0, 0, 0);
