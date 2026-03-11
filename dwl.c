@@ -38,6 +38,7 @@
 #include <wlr/types/wlr_input_device.h>
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_keyboard_group.h>
+#include <wlr/types/wlr_keyboard_shortcuts_inhibit_v1.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_linux_dmabuf_v1.h>
 #include <wlr/types/wlr_linux_drm_syncobj_v1.h>
@@ -340,6 +341,7 @@ static void createpointer(struct wlr_pointer *pointer);
 static void createpointerconstraint(struct wl_listener *listener, void *data);
 static void createpopup(struct wl_listener *listener, void *data);
 static void cursorconstrain(struct wlr_pointer_constraint_v1 *constraint);
+static void createshortcutsinhibitor(struct wl_listener *listener, void *data);
 static void cursorframe(struct wl_listener *listener, void *data);
 static void cursorwarptohint(void);
 static void destroybackend(struct wl_listener *listener, void *data);
@@ -354,6 +356,7 @@ static void destroypointerconstraint(struct wl_listener *listener, void *data);
 static void destroypopup(struct wl_listener *listener, void *data);
 static void destroysessionlock(struct wl_listener *listener, void *data);
 static void destroykeyboardgroup(struct wl_listener *listener, void *data);
+static void destroyshortcutsinhibitmgr(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(enum wlr_direction dir);
 static void drawbar(Monitor *m);
 static void drawbars(void);
@@ -470,6 +473,7 @@ static struct wl_list clients; /* tiling order */
 static struct wl_list fstack;  /* focus order */
 static struct wlr_idle_notifier_v1 *idle_notifier;
 static struct wlr_idle_inhibit_manager_v1 *idle_inhibit_mgr;
+static struct wlr_keyboard_shortcuts_inhibit_manager_v1 *shortcuts_inhibit_mgr;
 static struct wlr_layer_shell_v1 *layer_shell;
 static struct wlr_output_manager_v1 *output_mgr;
 static struct wlr_virtual_keyboard_manager_v1 *virtual_keyboard_mgr;
@@ -554,6 +558,8 @@ static struct wl_listener start_drag = {.notify = startdrag};
 static struct wl_listener drag_destroy = {.notify = destroydrag};
 static struct wl_listener new_session_lock = {.notify = locksession};
 static struct wl_listener new_foreign_toplevel_capture_request = {.notify = capturerequest};
+static struct wl_listener new_shortcuts_inhibitor = {.notify = createshortcutsinhibitor};
+static struct wl_listener shortcuts_inhibit_mgr_destroy = {.notify = destroyshortcutsinhibitmgr};
 
 #ifdef XWAYLAND
 static void activatex11(struct wl_listener *listener, void *data);
@@ -1657,6 +1663,10 @@ createpointer(struct wlr_pointer *pointer)
 	wlr_cursor_attach_input_device(cursor, &pointer->base);
 }
 
+void createshortcutsinhibitor(struct wl_listener *listener, void *data) {
+	wlr_keyboard_shortcuts_inhibitor_v1_activate(data);
+}
+
 void
 createpointerconstraint(struct wl_listener *listener, void *data)
 {
@@ -1917,6 +1927,11 @@ destroykeyboardgroup(struct wl_listener *listener, void *data)
 	wl_list_remove(&group->destroy.link);
 	wlr_keyboard_group_destroy(group->wlr_group);
 	free(group);
+}
+
+void destroyshortcutsinhibitmgr(struct wl_listener *listener, void *data) {
+	wl_list_remove(&new_shortcuts_inhibitor.link);
+	wl_list_remove(&listener->link);
 }
 
 Monitor *
@@ -2296,7 +2311,9 @@ keypress(struct wl_listener *listener, void *data)
 
 	/* On _press_ if there is no active screen locker,
 	 * attempt to process a compositor keybinding. */
-	if (!locked && event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+	if (!locked
+		&& event->state == WL_KEYBOARD_KEY_STATE_PRESSED
+		&& wl_list_empty(&shortcuts_inhibit_mgr->inhibitors)) {
 		for (int i = 0; i < 2; i++) {
 			const Key *key = keybinding(group->mods, group->keysyms[i]);
 			if (key) {
@@ -3305,7 +3322,7 @@ setup(void)
 	output_layout = wlr_output_layout_create(dpy);
 	wl_signal_add(&output_layout->events.change, &layout_change);
 
-    wlr_xdg_output_manager_v1_create(dpy, output_layout);
+	wlr_xdg_output_manager_v1_create(dpy, output_layout);
 
 	/* Configure a listener to be notified when new outputs are available on the
 	 * backend. */
@@ -3348,6 +3365,10 @@ setup(void)
             wlr_ext_foreign_toplevel_image_capture_source_manager_v1_create(dpy, 1);
 	wl_signal_add(&ext_foreign_toplevel_image_capture_source_manager_v1->events.new_request,
 			&new_foreign_toplevel_capture_request);
+
+	shortcuts_inhibit_mgr = wlr_keyboard_shortcuts_inhibit_v1_create(dpy);
+	wl_signal_add(&shortcuts_inhibit_mgr->events.new_inhibitor, &new_shortcuts_inhibitor);
+	wl_signal_add(&shortcuts_inhibit_mgr->events.destroy, &shortcuts_inhibit_mgr_destroy);
 
 	/* Use decoration protocols to negotiate server-side decorations */
 	wlr_server_decoration_manager_set_default_mode(
@@ -3405,7 +3426,7 @@ setup(void)
 	wl_signal_add(&virtual_keyboard_mgr->events.new_virtual_keyboard,
 			&new_virtual_keyboard);
 	virtual_pointer_mgr = wlr_virtual_pointer_manager_v1_create(dpy);
-    wl_signal_add(&virtual_pointer_mgr->events.new_virtual_pointer,
+	wl_signal_add(&virtual_pointer_mgr->events.new_virtual_pointer,
             &new_virtual_pointer);
 
 	seat = wlr_seat_create(dpy, "seat0");
