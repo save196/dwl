@@ -999,7 +999,7 @@ buttonpress(struct wl_listener *listener, void *data)
 		   or a layer surface with on-demand keyboard interactivity */
 		xytonode(cursor->x, cursor->y, NULL, &c, &l, NULL, NULL);
 		if (click == ClkClient && (!client_is_unmanaged(c) || client_wants_focus(c))) {
-			focusclient(c, NULL, 1);
+			focusclient(c, NULL, 0);
 		} else if (l && l->layer_surface->current.keyboard_interactive) {
 			focusclient(NULL, l, 0);
 		}
@@ -2705,6 +2705,7 @@ moveresize(const Arg *arg)
 	/* Float the window and tell motionnotify to grab it */
 	if (grabc->mon->lt[grabc->mon->sellt]->arrange)
 		setfloating(grabc, 1);
+	focusclient(grabc, NULL, 1);
 	switch (arg->ui) {
 	case CurMove:
 		beginmove(grabc);
