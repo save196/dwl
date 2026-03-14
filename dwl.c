@@ -631,8 +631,10 @@ applygeom(Client *c)
 	struct wlr_box clip;
 
 	/* All clients, including floating and fullscreen ones, share LyrTile
-	 * so any of them can be raised above the others */
-	wlr_scene_node_reparent(&c->scene->node, layers[LyrTile]);
+	 * so any of them can be raised above the others, except floating
+	 * scratchpads that are always on top */
+	wlr_scene_node_reparent(&c->scene->node, layers[c->isfloating
+			&& c->scratchpadid != -1 ? LyrFloat : LyrTile]);
 
 	c->current = c->geom;
 	if (c->snapshot) {
