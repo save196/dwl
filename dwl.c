@@ -371,6 +371,7 @@ static void handlesig(int signo);
 static void incnmaster(const Arg *arg);
 static void incxkbrules(const Arg *arg);
 static void inputdevice(struct wl_listener *listener, void *data);
+static int ismediakey(xkb_keysym_t sym);
 static const Key *keybinding(uint32_t mods, xkb_keysym_t sym);
 static void keypress(struct wl_listener *listener, void *data);
 static void keypressmod(struct wl_listener *listener, void *data);
@@ -2273,6 +2274,26 @@ inputdevice(struct wl_listener *listener, void *data)
 	wlr_seat_set_capabilities(seat, caps);
 }
 
+static int
+ismediakey(xkb_keysym_t sym)
+{
+	switch (sym) {
+	case XKB_KEY_XF86AudioPlay:
+	case XKB_KEY_XF86AudioStop:
+	case XKB_KEY_XF86AudioPrev:
+	case XKB_KEY_XF86AudioNext:
+	case XKB_KEY_XF86AudioRaiseVolume:
+	case XKB_KEY_XF86AudioLowerVolume:
+	case XKB_KEY_XF86AudioMute:
+	case XKB_KEY_XF86AudioMicMute:
+	case XKB_KEY_XF86MonBrightnessDown:
+	case XKB_KEY_XF86MonBrightnessUp:
+		return 1;
+	default:
+		return 0;
+	}
+}
+
 const Key *
 keybinding(uint32_t mods, xkb_keysym_t sym)
 {
@@ -2311,13 +2332,15 @@ keypress(struct wl_listener *listener, void *data)
 
 	wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
 
-	/* On _press_ if there is no active screen locker,
-	 * attempt to process a compositor keybinding. */
-	if (!locked
-		&& event->state == WL_KEYBOARD_KEY_STATE_PRESSED
-		&& wl_list_empty(&shortcuts_inhibit_mgr->inhibitors)) {
+	/* On _press_, process compositor keybindings.
+	 * When locked, only allow selected media keys. */
+	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED
+			&& wl_list_empty(&shortcuts_inhibit_mgr->inhibitors)) {
 		for (int i = 0; i < 2; i++) {
-			const Key *key = keybinding(group->mods, group->keysyms[i]);
+			const Key *key;
+			if (locked && !ismediakey(group->keysyms[i]))
+				continue;
+			key = keybinding(group->mods, group->keysyms[i]);
 			if (key) {
 				if (event->keycode < LENGTH(consumed))
 					consumed[event->keycode] = 1;
@@ -2371,14 +2394,20 @@ int
 keyrepeat(void *data)
 {
 	KeyboardGroup *group = data;
-	if (locked || group->wlr_group->keyboard.repeat_info.rate <= 0)
+	if (group->wlr_group->keyboard.repeat_info.rate <= 0)
+		return 0;
+	/* When locked, only repeat the selected media keys */
+	if (locked && !ismediakey(group->keysyms[0]) && !ismediakey(group->keysyms[1]))
 		return 0;
 
 	wl_event_source_timer_update(group->key_repeat_source,
 			1000 / group->wlr_group->keyboard.repeat_info.rate);
 
 	for (int i = 0; i < 2; i++) {
-		const Key *key = keybinding(group->mods, group->keysyms[i]);
+		const Key *key;
+		if (locked && !ismediakey(group->keysyms[i]))
+			continue;
+		key = keybinding(group->mods, group->keysyms[i]);
 		if (key) {
 			key->func(&key->arg);
 			break;
