@@ -690,16 +690,18 @@ applyrules(Client *c)
 	}
 
 	c->isfloating |= client_is_float_type(c);
+	if (c->isfloating && (!client_is_x11(c) || client_is_float_type(c))) {
+		c->geom.x = mon->w.x + (mon->w.width / 2 - c->geom.width / 2);
+		c->geom.y = mon->w.y + (mon->w.height / 2 - c->geom.height / 2);
+	}
+
 	if (c->scratchpadid != -1)
 		wl_list_for_each(cli, &clients, link)
 			if (cli->scratchpadid == c->scratchpadid && cli != c) {
 				c->scratchpadid = -1;
 				break;
 			}
-	if (c->scratchpadid != -1 && c->isfloating) {
-		c->geom.x = mon->w.x + (mon->w.width / 2 - c->geom.width / 2);
-		c->geom.y = mon->w.y + (mon->w.height / 2 - c->geom.height / 2);
-	}
+
 	setmon(c, mon, newtags);
 }
 
