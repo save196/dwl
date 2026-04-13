@@ -2465,7 +2465,6 @@ void
 mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
-	Client *p = NULL;
 	Client *c = wl_container_of(listener, c, map);
 	int i;
 	Client *focused = NULL;
@@ -2530,18 +2529,8 @@ mapnotify(struct wl_listener *listener, void *data)
 			? wlr_scene_xdg_surface_create(&c->image_capture_scene->tree, c->surface.xdg)
 			: wlr_scene_subsurface_tree_create(&c->image_capture_scene->tree, client_surface(c));
 
-
-	/* Set initial monitor, tags, floating status, and focus:
-	 * we always consider floating, clients that have parent and thus
-	 * we set the same tags and monitor as its parent.
-	 * If there is no parent, apply rules */
-	if ((p = client_get_parent(c))) {
-		c->isfloating = 1;
-		/* An unmanaged parent has no monitor */
-		setmon(c, p->mon ? p->mon : selmon, p->tags);
-	} else {
-		applyrules(c);
-	}
+	/* Set initial monitor, tags, floating status, and focus */
+	applyrules(c);
 	drawbars();
 }
 
