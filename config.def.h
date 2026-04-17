@@ -40,6 +40,7 @@ static int log_level = WLR_ERROR;
 
 static const Rule rules[] = {
 	/* app_id                    title       tags mask     isfloating   monitor scratchpadid */
+	{ "steam_app_",              NULL,       0,            1,           -1,     -1  },
 	{ NULL,                      "vimwiki",  0,            1,           -1,     0   },
 	{ "org.keepassxc.KeePassXC", NULL,       0,            0,           -1,     1   },
 };
