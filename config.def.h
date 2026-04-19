@@ -39,13 +39,13 @@ static char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 static int log_level = WLR_ERROR;
 
 static const Rule rules[] = {
-	/* app_id                    title       tags mask     isfloating   monitor scratchpadid */
-	{ "steam_app_",              NULL,       0,            1,           -1,     -1  },
-	{ "REAPER",                  "REAPER v", 0,            0,           -1,     -1  },
-	{ "REAPER",                  "Mixer",    0,            0,           -1,     -1  },
-	{ "REAPER",                  NULL,       0,            1,           -1,     -1  },
-	{ NULL,                      "vimwiki",  0,            1,           -1,     0   },
-	{ "org.keepassxc.KeePassXC", NULL,       0,            0,           -1,     1   },
+	/* app_id                    title       tags mask     isfloating   monitor scratchpadid isalwaysontop */
+	{ "steam_app_",              NULL,       0,            1,           -1,     -1,          0  },
+	{ "REAPER",                  "REAPER v", 0,            0,           -1,     -1,          0  },
+	{ "REAPER",                  "Mixer",    0,            0,           -1,     -1,          0  },
+	{ "REAPER",                  NULL,       0,            1,           -1,     -1,          1  },
+	{ NULL,                      "vimwiki",  0,            1,           -1,     0,           0  },
+	{ "org.keepassxc.KeePassXC", NULL,       0,            0,           -1,     1,           0  },
 };
 
 /* layout(s) */

@@ -173,6 +173,7 @@ typedef struct {
 	uint32_t tags;
 	int isfloating, isurgent, isfullscreen;
 	int scratchpadid;
+	int isalwaysontop;
 } Client;
 
 typedef struct {
@@ -288,6 +289,7 @@ typedef struct {
 	int isfloating;
 	int monitor;
 	int scratchpadid;
+	int isalwaysontop;
 } Rule;
 
 typedef struct {
@@ -633,9 +635,9 @@ applygeom(Client *c)
 
 	/* All clients, including floating and fullscreen ones, share LyrTile
 	 * so any of them can be raised above the others, except floating
-	 * scratchpads that are always on top */
+	 * scratchpads and always on top clients */
 	wlr_scene_node_reparent(&c->scene->node, layers[c->isfloating
-			&& c->scratchpadid != -1 ? LyrFloat : LyrTile]);
+			&& (c->scratchpadid != -1 || c->isalwaysontop) ? LyrFloat : LyrTile]);
 
 	c->current = c->geom;
 	if (c->snapshot) {
@@ -670,16 +672,23 @@ applyrules(Client *c)
 	const Rule *r;
 	Monitor *mon = selmon, *m;
 	Client *cli;
+	Client *p;
 
 	appid = client_get_appid(c);
 	title = client_get_title(c);
+	p = client_get_parent(c);
 	c->scratchpadid = -1;
+	c->isalwaysontop = p && p->isalwaysontop;
+#ifdef XWAYLAND
+	c->isalwaysontop |= client_is_x11(c) && c->surface.xwayland->above;
+#endif
 
 	for (r = rules; r < END(rules); r++) {
 		if ((!r->title || strstr(title, r->title))
 				&& (!r->id || strstr(appid, r->id))) {
 			c->isfloating = r->isfloating;
 			c->scratchpadid = r->scratchpadid;
+			c->isalwaysontop = r->isalwaysontop;
 			newtags |= r->tags;
 			i = 0;
 			wl_list_for_each(m, &mons, link) {
