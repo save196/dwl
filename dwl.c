@@ -700,7 +700,7 @@ applyrules(Client *c)
 	}
 
 	c->isfloating |= client_is_float_type(c);
-	if (c->isfloating && (!client_is_x11(c) || client_is_float_type(c))) {
+	if (mon && c->isfloating && !client_has_position_hint(c)) {
 		c->geom.x = mon->w.x + (mon->w.width / 2 - c->geom.width / 2);
 		c->geom.y = mon->w.y + (mon->w.height / 2 - c->geom.height / 2);
 	}

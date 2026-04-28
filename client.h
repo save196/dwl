@@ -214,6 +214,20 @@ client_get_parent(Client *c)
 }
 
 static inline int
+client_has_position_hint(Client *c)
+{
+#ifdef XWAYLAND
+	if (client_is_x11(c)) {
+		xcb_size_hints_t *size_hints = c->surface.xwayland->size_hints;
+		return size_hints && (size_hints->flags
+			& (XCB_ICCCM_SIZE_HINT_US_POSITION
+				| XCB_ICCCM_SIZE_HINT_P_POSITION));
+	}
+#endif
+	return 0;
+}
+
+static inline int
 client_has_children(Client *c)
 {
 #ifdef XWAYLAND
