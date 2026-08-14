@@ -14,6 +14,10 @@ static const int topbar                    = 0; /* 0 means bottom bar */
 static const char *fonts[]                 = {"monospace:size=11:antialias=true:autohint=true"};
 static const float rootcolor[]             = COLOR(0x000000ff);
 static const float fullscreen_bg[]         = {0.0f, 0.0f, 0.0f, 1.0f}; /* You can also use glsl colors */
+/* tablet */
+static const int tabletmaptosurface        = 0;  /* map tablet input to surface(1) or monitor(0) */
+/* Pen active area: value 0.0 => 1.0         { x,    y,    width, height } */
+static const double tablet_area[4]         = { 0.0,  0.0,  1.0,   1.0 };
 /* keyboard layout change notification for status bar */
 static const char *kblayout_cmd[] = {"pkill", "-RTMIN+11", "dwlblocks", NULL};
 static uint32_t colors[][3]                = {
@@ -233,4 +237,21 @@ static const Axis axes[] = {
 	{ MODKEY, AxisDown, spawn, SHCMD("volume-down_EXAMPLE") }, */
 	{ 0, 0, NULL, {0} },
 	/* does nothing, but the array cannot be empty */
+};
+
+/* The NULL entry keeps the arrays non-empty, it must be kept last */
+static const TabletButton tabletbuttons[] = {
+	/* button       state                function     argument */
+/*	{ BTN_STYLUS,   WLR_BUTTON_PRESSED,  spawn,       {.v = termcmd} }, */
+/*	{ BTN_STYLUS2,  WLR_BUTTON_PRESSED,  killclient,  {0} }, */
+	{ 0,            0,                   NULL,        {0} },
+};
+
+static const TabletPadButton tabletpadbuttons[] = {
+	/* button  state                function         argument */
+/*	{ 0,       WLR_BUTTON_PRESSED,  spawn,           {.v = termcmd} }, */
+/*	{ 1,       WLR_BUTTON_PRESSED,  killclient,      {0} }, */
+/*	{ 2,       WLR_BUTTON_PRESSED,  togglefloating,  {0} }, */
+/*	{ 3,       WLR_BUTTON_PRESSED,  zoom,            {0} }, */
+	{ 0,       0,                   NULL,            {0} },
 };

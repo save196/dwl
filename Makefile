@@ -19,7 +19,8 @@ LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` $(WLR_LIBS) -lm $(LIBS)
 all: dwl
 dwl: dwl.c client.h config.h ime.h util.h config.mk cursor-shape-v1-protocol.h \
 	ext-image-copy-capture-v1-protocol.h \
-	pointer-constraints-unstable-v1-protocol.h wlr-layer-shell-unstable-v1-protocol.h \
+	pointer-constraints-unstable-v1-protocol.h tablet-v2-protocol.h \
+	wlr-layer-shell-unstable-v1-protocol.h \
 	wlr-output-power-management-unstable-v1-protocol.h xdg-shell-protocol.h
 	$(CC) dwl.c $(DWLCFLAGS) $(LDFLAGS) $(LDLIBS) -o $@
 
@@ -38,6 +39,9 @@ ext-image-copy-capture-v1-protocol.h:
 pointer-constraints-unstable-v1-protocol.h:
 	$(WAYLAND_SCANNER) enum-header \
 		$(WAYLAND_PROTOCOLS)/unstable/pointer-constraints/pointer-constraints-unstable-v1.xml $@
+tablet-v2-protocol.h:
+	$(WAYLAND_SCANNER) server-header \
+		$(WAYLAND_PROTOCOLS)/unstable/tablet/tablet-unstable-v2.xml $@
 wlr-layer-shell-unstable-v1-protocol.h:
 	$(WAYLAND_SCANNER) enum-header \
 		protocols/wlr-layer-shell-unstable-v1.xml $@
