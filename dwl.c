@@ -1060,7 +1060,7 @@ buttonpress(struct wl_listener *listener, void *data)
 		   or a layer surface with on-demand keyboard interactivity */
 		xytonode(cursor->x, cursor->y, NULL, &c, &l, NULL, NULL);
 		if (click == ClkClient && (!client_is_unmanaged(c) || client_wants_focus(c))) {
-			focusclient(c, NULL, 0);
+			focusclient(c, NULL, c->isfullscreen);
 		} else if (l && l->layer_surface->current.keyboard_interactive) {
 			focusclient(NULL, l, 0);
 		}
@@ -2793,6 +2793,11 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 		/* Move the grabbed client to the new position. */
 		nx = (int)round(cursor->x) - grabcx;
 		ny = (int)round(cursor->y) - grabcy;
+		if (!grabc->isfloating && grabc->mon->lt[grabc->mon->sellt]->arrange) {
+			if (nx == grabc->geom.x && ny == grabc->geom.y)
+				return;
+			setfloating(grabc, 1);
+		}
 		if (abs(selmon->w.x - nx) < (int)snap)
 			nx = selmon->w.x;
 		else if (abs((selmon->w.x + selmon->w.width) - (nx + grabc->geom.width)) < (int)snap)
@@ -2859,9 +2864,8 @@ moveresize(const Arg *arg)
 	if (!grabc || client_is_unmanaged(grabc) || grabc->isfullscreen || !grabc->mon)
 		return;
 
-	/* Float the window and tell motionnotify to grab it */
-	if (grabc->mon->lt[grabc->mon->sellt]->arrange)
-		setfloating(grabc, 1);
+	/* Tell motionnotify to grab the window, a moved window is floated
+	 * only once the pointer is dragged */
 	focusclient(grabc, NULL, 1);
 	switch (arg->ui) {
 	case CurMove:
@@ -2869,6 +2873,8 @@ moveresize(const Arg *arg)
 		break;
 	case CurResize:
 		cursor_mode = CurResize;
+		if (grabc->mon->lt[grabc->mon->sellt]->arrange)
+			setfloating(grabc, 1);
 		/* Doesn't work for X11 output - the next absolute motion event
 		 * returns the cursor to where it started */
 		wlr_cursor_warp_closest(cursor, NULL,
