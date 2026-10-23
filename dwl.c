@@ -177,6 +177,7 @@ typedef struct {
 	int isfloating, isurgent, isfullscreen;
 	int scratchpadid;
 	int isalwaysontop;
+	char *output; /* name of the output to move back to when it's reconnected */
 } Client;
 
 typedef struct {
@@ -436,6 +437,7 @@ static void setfullscreen(Client *c, int fullscreen);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m, uint32_t newtags);
+static void setmonkeep(Client *c, Monitor *m);
 static void setmonoff(struct wlr_output *wlr_output, int off);
 static void setpsel(struct wl_listener *listener, void *data);
 static void setsel(struct wl_listener *listener, void *data);
@@ -1314,7 +1316,7 @@ closemon(Monitor *m)
 
 	wl_list_for_each(c, &clients, link) {
 		if (c->mon == m)
-			setmon(c, selmon, c->tags);
+			setmonkeep(c, selmon);
 	}
 	focusclient(focustop(selmon), NULL, 1);
 	drawbars();
@@ -2017,6 +2019,7 @@ destroynotify(struct wl_listener *listener, void *data)
 			wl_list_remove(&c->destroy_decoration.link);
 		}
 	}
+	free(c->output);
 	free(c);
 }
 
@@ -3400,6 +3403,10 @@ setmon(Client *c, Monitor *m, uint32_t newtags)
 	c->mon = m;
 	if (!c->isfullscreen || wlr_box_empty(&c->prev))
 		c->prev = c->geom;
+	if (m) {
+		free(c->output);
+		c->output = strdup(m->wlr_output->name);
+	}
 
 	/* Scene graph sends surface leave/enter events on move and resize */
 	if (oldmon)
@@ -3412,6 +3419,20 @@ setmon(Client *c, Monitor *m, uint32_t newtags)
 		setfloating(c, c->isfloating);
 	}
 	focusclient(focustop(selmon), NULL, 1);
+}
+
+void
+setmonkeep(Client *c, Monitor *m)
+{
+	/* Move the client without changing the output it moves back to */
+	char *output = c->output;
+
+	c->output = NULL;
+	setmon(c, m, c->tags);
+	if (output) {
+		free(c->output);
+		c->output = output;
+	}
 }
 
 void
@@ -4497,6 +4518,15 @@ updatemons(struct wl_listener *listener, void *data)
 
 		/* Calculate the effective monitor geometry to use for clients */
 		arrangelayers(m);
+
+		/* Move back the clients that were on this output when it was
+		 * disconnected or disabled */
+		wl_list_for_each(c, &clients, link) {
+			if (c->mon == m || !c->output || strcmp(c->output, m->wlr_output->name))
+				continue;
+			setmon(c, m, c->tags);
+		}
+
 		/* Don't move clients to the left output when plugging monitors */
 		arrange(m);
 		/* make sure fullscreen clients have the right size, and that
@@ -4531,7 +4561,7 @@ updatemons(struct wl_listener *listener, void *data)
 	if (selmon && selmon->wlr_output->enabled) {
 		wl_list_for_each(c, &clients, link) {
 			if (!c->mon && client_surface(c)->mapped)
-				setmon(c, selmon, c->tags);
+				setmonkeep(c, selmon);
 		}
 		focusclient(focustop(selmon), NULL, 1);
 		if (selmon->lock_surface) {
