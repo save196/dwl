@@ -419,6 +419,8 @@ static void pointerfocus(Client *c, LayerSurface* l, struct wlr_surface *surface
 		double sx, double sy, uint32_t time);
 static void powermgrsetmode(struct wl_listener *listener, void *data);
 static void quit(const Arg *arg);
+static void raisechildren(Client *p);
+static void raiseclient(Client *c);
 static void refocuspointer(void *data);
 static void rendermon(struct wl_listener *listener, void *data);
 static void requestdecorationmode(struct wl_listener *listener, void *data);
@@ -2167,7 +2169,7 @@ focusclient(Client *c, LayerSurface *l, int lift)
 
 	/* Raise client in stacking order if requested */
 	if (c && lift)
-		wlr_scene_node_raise_to_top(&c->scene->node);
+		raiseclient(c);
 
 	if (c && c->mon && c->isfullscreen && !client_is_x11(c))
 		placefullscreenbg(c);
@@ -2705,7 +2707,7 @@ monocle(Monitor *m)
 	if (n)
 		snprintf(m->ltsymbol, LENGTH(m->ltsymbol), "[%d]", n);
 	if ((c = focustop(m)))
-		wlr_scene_node_raise_to_top(&c->scene->node);
+		raiseclient(c);
 }
 
 void
@@ -3058,6 +3060,36 @@ void
 quit(const Arg *arg)
 {
 	wl_display_terminate(dpy);
+}
+
+void
+raisechildren(Client *p)
+{
+	Client *c;
+
+	wl_list_for_each_reverse(c, &fstack, flink)
+		if (client_get_parent(c) == p
+				&& c->scene->node.parent == p->scene->node.parent) {
+			wlr_scene_node_raise_to_top(&c->scene->node);
+			raisechildren(c);
+		}
+}
+
+void
+raiseclient(Client *c)
+{
+	Client *p, *root = c;
+
+	/* Raise a client together with its ancestors and descendants */
+	while ((p = client_get_parent(root))
+			&& p->scene->node.parent == root->scene->node.parent)
+		root = p;
+	wlr_scene_node_raise_to_top(&root->scene->node);
+	raisechildren(root);
+	if (root != c) {
+		wlr_scene_node_raise_to_top(&c->scene->node);
+		raisechildren(c);
+	}
 }
 
 void
