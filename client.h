@@ -378,18 +378,22 @@ client_send_frame_done(Client *c)
 static inline void
 client_set_tiled(Client *c, uint32_t edges)
 {
+	int tiled = edges != WLR_EDGE_NONE;
+
 #ifdef XWAYLAND
 	if (client_is_x11(c)) {
-		wlr_xwayland_surface_set_maximized(c->surface.xwayland,
-				edges != WLR_EDGE_NONE, edges != WLR_EDGE_NONE);
+		if (c->surface.xwayland->maximized_vert != tiled
+				|| c->surface.xwayland->maximized_horz != tiled)
+			wlr_xwayland_surface_set_maximized(c->surface.xwayland, tiled, tiled);
 		return;
   }
 #endif
 	if (wl_resource_get_version(c->surface.xdg->toplevel->resource)
 			>= XDG_TOPLEVEL_STATE_TILED_RIGHT_SINCE_VERSION) {
-		wlr_xdg_toplevel_set_tiled(c->surface.xdg->toplevel, edges);
-	} else {
-		wlr_xdg_toplevel_set_maximized(c->surface.xdg->toplevel, edges != WLR_EDGE_NONE);
+		if (c->surface.xdg->toplevel->scheduled.tiled != edges)
+			wlr_xdg_toplevel_set_tiled(c->surface.xdg->toplevel, edges);
+	} else if (c->surface.xdg->toplevel->scheduled.maximized != tiled) {
+		wlr_xdg_toplevel_set_maximized(c->surface.xdg->toplevel, tiled);
 	}
 }
 

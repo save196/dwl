@@ -772,10 +772,14 @@ arrange(Monitor *m)
 		return;
 
 	wl_list_for_each(c, &clients, link) {
-		if (c->mon == m)
-			client_set_suspended(c, !VISIBLEON(c, m)
-					&& (!c->image_capture_source
-					|| wl_list_empty(&c->image_capture_source->resources)));
+		if (c->mon != m)
+			continue;
+		client_set_suspended(c, !VISIBLEON(c, m)
+				&& (!c->image_capture_source
+				|| wl_list_empty(&c->image_capture_source->resources)));
+		if (VISIBLEON(c, m))
+			client_set_tiled(c, c->isfloating || !m->lt[m->sellt]->arrange ? WLR_EDGE_NONE
+					: WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
 	}
 
 	strncpy(m->ltsymbol, m->lt[m->sellt]->symbol, sizeof(m->ltsymbol));
@@ -1368,6 +1372,7 @@ void
 commitnotify(struct wl_listener *listener, void *data)
 {
 	Client *c = wl_container_of(listener, c, commit);
+	struct wlr_box geom;
 
 	if (c->surface.xdg->initial_commit) {
 		/*
@@ -1379,6 +1384,9 @@ commitnotify(struct wl_listener *listener, void *data)
 		applyrules(c);
 		if (c->mon) {
 			client_set_scale(client_surface(c), c->mon->wlr_output->scale);
+			if (!c->isfloating && c->mon->lt[c->mon->sellt]->arrange)
+				client_set_tiled(c, WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT |
+						WLR_EDGE_RIGHT);
 		}
 		setmon(c, NULL, 0); /* Make sure to reapply rules in mapnotify() */
 
@@ -1387,9 +1395,6 @@ commitnotify(struct wl_listener *listener, void *data)
 		if (c->decoration)
 			requestdecorationmode(&c->set_decoration_mode, c->decoration);
 		wlr_xdg_toplevel_set_size(c->surface.xdg->toplevel, 0, 0);
-		if (!c->isfloating)
-			client_set_tiled(c, WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT |
-					WLR_EDGE_RIGHT);
 		return;
 	}
 
@@ -1403,6 +1408,16 @@ commitnotify(struct wl_listener *listener, void *data)
 
 	transactioncommit(c, c->resize_serial && c->surface.xdg->current.configure_serial
 			>= c->resize_serial);
+
+	if (c->mon && !c->isfullscreen
+			&& c->surface.xdg->toplevel->current.width == c->surface.xdg->toplevel->scheduled.width
+			&& c->surface.xdg->toplevel->current.height == c->surface.xdg->toplevel->scheduled.height
+			&& (c->isfloating || !c->mon->lt[c->mon->sellt]->arrange)) {
+		client_get_geometry(c, &geom);
+		c->geom.width = geom.width + 2 * c->bw;
+		c->geom.height = geom.height + 2 * c->bw;
+	}
+
 	resize(c, c->geom, (c->isfloating && !c->isfullscreen));
 }
 
