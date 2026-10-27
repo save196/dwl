@@ -679,7 +679,7 @@ applybounds(Client *c, struct wlr_box *bbox)
 void
 applygeom(Client *c)
 {
-	struct wlr_box clip;
+	struct wlr_box clip, geom = c->geom;
 
 	/* All clients, including floating and fullscreen ones, share LyrTile
 	 * so any of them can be raised above the others, except floating
@@ -694,18 +694,25 @@ applygeom(Client *c)
 		wlr_scene_node_set_enabled(&c->scene_surface->node, 1);
 	}
 
+	if (!client_is_x11(c) && !c->isfullscreen
+			&& (c->isfloating || !c->mon->lt[c->mon->sellt]->arrange)) {
+		client_get_geometry(c, &geom);
+		geom.width += 2 * c->bw;
+		geom.height += 2 * c->bw;
+	}
+
 	/* Update scene-graph, including borders */
 	wlr_scene_node_set_position(&c->scene->node, c->geom.x, c->geom.y);
 	wlr_scene_node_set_position(&c->scene_surface->node, c->bw, c->bw);
-	wlr_scene_rect_set_size(c->border[0], c->geom.width, c->bw);
-	wlr_scene_rect_set_size(c->border[1], c->geom.width, c->bw);
-	wlr_scene_rect_set_size(c->border[2], c->bw, c->geom.height - 2 * c->bw);
-	wlr_scene_rect_set_size(c->border[3], c->bw, c->geom.height - 2 * c->bw);
-	wlr_scene_node_set_position(&c->border[1]->node, 0, c->geom.height - c->bw);
+	wlr_scene_rect_set_size(c->border[0], geom.width, c->bw);
+	wlr_scene_rect_set_size(c->border[1], geom.width, c->bw);
+	wlr_scene_rect_set_size(c->border[2], c->bw, geom.height - 2 * c->bw);
+	wlr_scene_rect_set_size(c->border[3], c->bw, geom.height - 2 * c->bw);
+	wlr_scene_node_set_position(&c->border[1]->node, 0, geom.height - c->bw);
 	wlr_scene_node_set_position(&c->border[2]->node, 0, c->bw);
-	wlr_scene_node_set_position(&c->border[3]->node, c->geom.width - c->bw, c->bw);
+	wlr_scene_node_set_position(&c->border[3]->node, geom.width - c->bw, c->bw);
 
-	client_get_clip(c, &clip);
+	client_get_clip(c, &geom, &clip);
 	wlr_scene_subsurface_tree_set_clip(&c->scene_surface->node, &clip);
 	wlr_scene_subsurface_tree_set_clip(&c->image_capture_tree->node, &clip);
 }

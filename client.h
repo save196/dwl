@@ -163,13 +163,13 @@ client_get_appid(Client *c)
 }
 
 static inline void
-client_get_clip(Client *c, struct wlr_box *clip)
+client_get_clip(Client *c, struct wlr_box *geom, struct wlr_box *clip)
 {
 	*clip = (struct wlr_box){
 		.x = 0,
 		.y = 0,
-		.width = c->geom.width - 2 * c->bw,
-		.height = c->geom.height - 2 * c->bw,
+		.width = geom->width - 2 * c->bw,
+		.height = geom->height - 2 * c->bw,
 	};
 
 #ifdef XWAYLAND
