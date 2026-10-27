@@ -771,17 +771,6 @@ arrange(Monitor *m)
 	if (!m->wlr_output->enabled)
 		return;
 
-	wl_list_for_each(c, &clients, link) {
-		if (c->mon != m)
-			continue;
-		client_set_suspended(c, !VISIBLEON(c, m)
-				&& (!c->image_capture_source
-				|| wl_list_empty(&c->image_capture_source->resources)));
-		if (VISIBLEON(c, m))
-			client_set_tiled(c, c->isfloating || !m->lt[m->sellt]->arrange ? WLR_EDGE_NONE
-					: WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
-	}
-
 	strncpy(m->ltsymbol, m->lt[m->sellt]->symbol, sizeof(m->ltsymbol));
 
 	if (m->lt[m->sellt]->arrange) {
@@ -793,6 +782,18 @@ arrange(Monitor *m)
 			c->bw = borderpx;
 			resize(c, c->geom, 0);
 		}
+	}
+
+	wl_list_for_each(c, &clients, link) {
+		if (c->mon != m)
+			continue;
+		client_set_suspended(c, !VISIBLEON(c, m)
+				&& (!c->image_capture_source
+				|| wl_list_empty(&c->image_capture_source->resources)));
+		client_set_bounds(c, m->w.width - 2 * (int)c->bw, m->w.height - 2 * (int)c->bw);
+		if (VISIBLEON(c, m))
+			client_set_tiled(c, c->isfloating || !m->lt[m->sellt]->arrange ? WLR_EDGE_NONE
+					: WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
 	}
 
 	transactionschedule();
@@ -1384,6 +1385,8 @@ commitnotify(struct wl_listener *listener, void *data)
 		applyrules(c);
 		if (c->mon) {
 			client_set_scale(client_surface(c), c->mon->wlr_output->scale);
+			client_set_bounds(c, c->mon->w.width - 2 * (int)c->bw,
+					c->mon->w.height - 2 * (int)c->bw);
 			if (!c->isfloating && c->mon->lt[c->mon->sellt]->arrange)
 				client_set_tiled(c, WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT |
 						WLR_EDGE_RIGHT);
@@ -3185,7 +3188,6 @@ resize(Client *c, struct wlr_box geo, int interact)
 
 	bbox = interact ? &sgeom : &c->mon->w;
 
-	client_set_bounds(c, geo.width, geo.height);
 	c->geom = geo;
 	applybounds(c, bbox);
 
