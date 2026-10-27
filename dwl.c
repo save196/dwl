@@ -445,6 +445,7 @@ static struct wlr_scene_node *snapshot(struct wlr_scene_node *node,
 static void spawn(const Arg *arg);
 static void startdrag(struct wl_listener *listener, void *data);
 static int statusin(int fd, unsigned int mask, void *data);
+static void surfacepos(struct wlr_surface *surface, int *x, int *y);
 static void tabletapplymap(struct wlr_input_device *dev);
 static void tabletleavesurface(struct wlr_tablet_v2_tablet_tool *tool);
 static void tabletpadbutton(struct wl_listener *listener, void *data);
@@ -2847,11 +2848,23 @@ motionnotify(uint32_t time, struct wlr_input_device *device, double dx, double d
 
 	if (cursor_mode == CurPressed && !seat->drag
 			&& surface != seat->pointer_state.focused_surface
-			&& toplevel_from_wlr_surface(seat->pointer_state.focused_surface, &w, &focusedl) >= 0) {
+			&& toplevel_from_wlr_surface(seat->pointer_state.focused_surface, &w, &focusedl) >= 0
+			&& (focusedl || client_surface(w)->mapped)) {
 		c = w;
 		surface = seat->pointer_state.focused_surface;
-		sx = cursor->x - (focusedl ? focusedl->scene->node.x : w->geom.x);
-		sy = cursor->y - (focusedl ? focusedl->scene->node.y : w->geom.y);
+		surfacepos(surface, &nx, &ny);
+		sx = cursor->x - nx;
+		sy = cursor->y - ny;
+	}
+
+	/* Keep the pointer focus on a client while it shows a snapshot */
+	if (!surface && c && c->snapshot
+			&& toplevel_from_wlr_surface(seat->pointer_state.focused_surface, &w, NULL) >= 0
+			&& w == c) {
+		surface = seat->pointer_state.focused_surface;
+		surfacepos(surface, &nx, &ny);
+		sx = cursor->x - nx;
+		sy = cursor->y - ny;
 	}
 
 	/* If there's no client surface under the cursor, set the cursor image to a
@@ -3793,6 +3806,40 @@ statusin(int fd, unsigned int mask, void *data)
 	drawbars();
 
 	return 0;
+}
+
+void
+surfacepos(struct wlr_surface *surface, int *x, int *y)
+{
+	struct wlr_subsurface *subsurface;
+	struct wlr_xdg_popup *popup;
+	struct wlr_scene_tree *tree;
+	Client *c = NULL;
+	LayerSurface *l = NULL;
+	int sx = 0, sy = 0;
+
+	*x = *y = 0;
+	if (toplevel_from_wlr_surface(surface, &c, &l) < 0)
+		return;
+
+	while ((subsurface = wlr_subsurface_try_from_wlr_surface(surface))) {
+		sx += subsurface->current.x;
+		sy += subsurface->current.y;
+		surface = subsurface->parent;
+	}
+
+	if ((popup = wlr_xdg_popup_try_from_wlr_surface(surface)) && (tree = surface->data)) {
+		wlr_scene_node_coords(&tree->node, x, y);
+		*x -= popup->base->geometry.x;
+		*y -= popup->base->geometry.y;
+	} else if (l) {
+		wlr_scene_node_coords(&l->scene->node, x, y);
+	} else {
+		client_get_surface_pos(c, x, y);
+	}
+
+	*x += sx;
+	*y += sy;
 }
 
 void

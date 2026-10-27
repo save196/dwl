@@ -197,6 +197,18 @@ client_get_geometry(Client *c, struct wlr_box *geom)
 	geom->x = geom->y = 0;
 }
 
+static inline void
+client_get_surface_pos(Client *c, int *x, int *y)
+{
+	wlr_scene_node_coords(&c->scene_surface->node, x, y);
+#ifdef XWAYLAND
+	if (client_is_x11(c))
+		return;
+#endif
+	*x -= c->surface.xdg->geometry.x;
+	*y -= c->surface.xdg->geometry.y;
+}
+
 static inline Client *
 client_get_parent(Client *c)
 {
