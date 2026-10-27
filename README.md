@@ -12,6 +12,10 @@ It includes the following patches:
 - togglekblayoutandoptions
 - kblayout
 - namedscratchpads
+- xwayland-handle-minimize
+- keyboardshortcutsinhibit
+- tablet-input
+- custom restore-monitor
 
 For more info, check out the official repo.
 
