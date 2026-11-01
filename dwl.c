@@ -477,6 +477,7 @@ static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
 static void updatemons(struct wl_listener *listener, void *data);
 static void updatebar(Monitor *m);
+static void updatefslayer(Monitor *m);
 static void updatetitle(struct wl_listener *listener, void *data);
 static void urgent(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
@@ -806,6 +807,8 @@ arrange(Monitor *m)
 					: WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
 	}
 
+	updatefslayer(m);
+
 	transactionschedule();
 }
 
@@ -860,11 +863,13 @@ arrangelayers(Monitor *m)
 	for (i = 3; i >= 0; i--)
 		arrangelayer(m, &m->layers[i], &usable_area, 0);
 
+	updatefslayer(m);
+
 	/* Find topmost keyboard interactive layer that has indicated it wants
 	 * exclusive access to the keyboard, if such a layer exists */
 	for (i = 0; i < (int)LENGTH(layers_above_shell); i++) {
 		wl_list_for_each_reverse(l, &m->layers[layers_above_shell[i]], link) {
-			if (locked ||
+			if (locked || !l->scene->node.enabled ||
 					l->layer_surface->current.keyboard_interactive != ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE ||
 					!l->mapped)
 				continue;
@@ -4612,6 +4617,26 @@ updatebar(Monitor *m)
 	m->lrpad = m->drw->font->height;
 	m->b.height = m->drw->font->height + 2;
 	m->b.real_height = (int)((float)m->b.height / m->wlr_output->scale);
+}
+
+void
+updatefslayer(Monitor *m)
+{
+	Client *c;
+	LayerSurface *l;
+	int hide = 0;
+
+	wl_list_for_each(c, &clients, link) {
+		if (VISIBLEON(c, m) && c->isfullscreen) {
+			hide = 1;
+			break;
+		}
+	}
+
+	wl_list_for_each(l, &m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP], link) {
+		wlr_scene_node_set_enabled(&l->scene->node, l->mapped && !hide);
+		wlr_scene_node_set_enabled(&l->popups->node, l->mapped && !hide);
+	}
 }
 
 void
