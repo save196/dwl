@@ -2318,18 +2318,9 @@ focusstack(const Arg *arg)
 Client *
 focustop(Monitor *m)
 {
-	Client *c, *fs = NULL;
-
-	wl_list_for_each(c, &fstack, flink) {
-		if (VISIBLEON(c, m) && c->isfullscreen) {
-			fs = c;
-			break;
-		}
-	}
-
-	/* A fullscreen client's children are shown above it */
+	Client *c;
 	wl_list_for_each(c, &fstack, flink)
-		if (VISIBLEON(c, m) && (!fs || c == fs || client_get_parent(c) == fs))
+		if (VISIBLEON(c, m))
 			return c;
 	return NULL;
 }
