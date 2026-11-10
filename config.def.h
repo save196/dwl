@@ -29,11 +29,9 @@ static uint32_t colors[][3]                = {
 
 /* scratchpads comands */
 const char *spcmd0[] = { "kitty", "--class", "vimwiki", "-T", "vimwiki", "-o", "initial_window_width=1300", "-o", "initial_window_height=800", "nvim", "+VimwikiIndex", NULL };
-const char *spcmd1[] = { "keepassxc", NULL };
 
 static const char **scratchpads[] = {
 	spcmd0,
-	spcmd1
 };
 
 /* tagging */
@@ -43,13 +41,13 @@ static char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 static int log_level = WLR_ERROR;
 
 static const Rule rules[] = {
-	/* app_id                    title       tags mask     isfloating   monitor scratchpadid isalwaysontop */
-	{ "steam_app_",              NULL,       0,            1,           -1,     -1,          0  },
-	{ "REAPER",                  "REAPER v", 0,            0,           -1,     -1,          0  },
-	{ "REAPER",                  "Mixer",    0,            0,           -1,     -1,          0  },
-	{ "REAPER",                  NULL,       0,            1,           -1,     -1,          1  },
-	{ NULL,                      "vimwiki",  0,            1,           -1,     0,           0  },
-	{ "org.keepassxc.KeePassXC", NULL,       0,            0,           -1,     1,           0  },
+	/* app_id                    title              tags mask     isfloating   monitor scratchpadid isalwaysontop */
+	{ "steam_app_",              NULL,              0,            1,           -1,     -1,          0  },
+	{ "REAPER",                  "REAPER v",        0,            0,           -1,     -1,          0  },
+	{ "REAPER",                  "Mixer",           0,            0,           -1,     -1,          0  },
+	{ "REAPER",                  NULL,              0,            1,           -1,     -1,          1  },
+	{ "org.keepassxc.KeePassXC", "Unlock Database", 0,            1,           -1,     -1,          0  },
+	{ NULL,                      "vimwiki",         0,            1,           -1,     0,           0  },
 };
 
 /* layout(s) */
@@ -155,7 +153,7 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_Return,      spawn,            {.v = termcmd} },
 	{ MODKEY,                    XKB_KEY_section,     togglescratch,    {.i = 0 } },
 	{ MODKEY,                    XKB_KEY_grave,       togglescratch,    {.i = 0 } },
-	{ MODKEY,                    XKB_KEY_x,           togglescratch,    {.i = 1 } },
+	{ MODKEY,                    XKB_KEY_x,           spawn,            SHCMD("keepassxc") },
 	{ MODKEY,                    XKB_KEY_w,           spawn,            SHCMD("$BROWSER") },
 	{ MODKEY,                    XKB_KEY_s,           spawn,            SHCMD("spotify") },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_BackSpace,   spawn,            SHCMD("dmenu_power") },
