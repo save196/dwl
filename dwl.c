@@ -56,6 +56,7 @@
 #include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_screencopy_v1.h>
 #include <wlr/types/wlr_seat.h>
+#include <wlr/types/wlr_security_context_v1.h>
 #include <wlr/types/wlr_server_decoration.h>
 #include <wlr/types/wlr_session_lock_v1.h>
 #include <wlr/types/wlr_single_pixel_buffer_v1.h>
@@ -385,6 +386,8 @@ static void destroytabletsurfacenotify(struct wl_listener *listener, void *data)
 static Monitor *dirtomon(enum wlr_direction dir);
 static void drawbar(Monitor *m);
 static void drawbars(void);
+static bool filterglobal(const struct wl_client *client,
+		const struct wl_global *global, void *data);
 static void focusclient(Client *c, LayerSurface *l, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
@@ -523,6 +526,14 @@ static struct wlr_cursor_shape_manager_v1 *cursor_shape_mgr;
 static struct wlr_output_power_manager_v1 *power_mgr;
 static struct wlr_ext_foreign_toplevel_list_v1 *foreign_toplevel_list;
 static struct wlr_ext_foreign_toplevel_image_capture_source_manager_v1 *ext_foreign_toplevel_image_capture_source_manager_v1;
+static struct wlr_security_context_manager_v1 *security_context_mgr;
+static struct wlr_screencopy_manager_v1 *screencopy_mgr;
+static struct wlr_ext_image_copy_capture_manager_v1 *ext_image_copy_capture_mgr;
+static struct wlr_ext_output_image_capture_source_manager_v1 *ext_output_image_capture_source_mgr;
+static struct wlr_export_dmabuf_manager_v1 *export_dmabuf_mgr;
+static struct wlr_data_control_manager_v1 *data_control_mgr;
+static struct wlr_ext_data_control_manager_v1 *ext_data_control_mgr;
+static struct wlr_gamma_control_manager_v1 *gamma_control_mgr;
 
 static struct wlr_pointer_constraints_v1 *pointer_constraints;
 static struct wlr_relative_pointer_manager_v1 *relative_pointer_mgr;
@@ -2118,6 +2129,33 @@ dirtomon(enum wlr_direction dir)
 	return selmon;
 }
 
+bool
+filterglobal(const struct wl_client *client, const struct wl_global *global, void *data)
+{
+	/* Only sandboxed clients (e.g. Flatpak apps) are restricted */
+	if (!wlr_security_context_manager_v1_lookup_client(security_context_mgr, client))
+		return true;
+
+	return global != security_context_mgr->global
+		&& global != screencopy_mgr->global
+		&& global != ext_image_copy_capture_mgr->global
+		&& global != ext_output_image_capture_source_mgr->global
+		&& global != ext_foreign_toplevel_image_capture_source_manager_v1->global
+		&& global != export_dmabuf_mgr->global
+		&& global != data_control_mgr->global
+		&& global != ext_data_control_mgr->global
+		&& global != virtual_keyboard_mgr->global
+		&& global != virtual_pointer_mgr->global
+		&& global != foreign_toplevel_list->global
+		&& global != output_mgr->global
+		&& global != power_mgr->global
+		&& global != gamma_control_mgr->global
+		&& global != layer_shell->global
+		&& global != session_lock_mgr->global
+		&& global != input_method_manager->global
+		&& global != shortcuts_inhibit_mgr->global;
+}
+
 void
 drawbar(Monitor *m)
 {
@@ -3544,12 +3582,13 @@ setup(void)
 	compositor = wlr_compositor_create(dpy, 6, drw);
 	wlr_subcompositor_create(dpy);
 	wlr_data_device_manager_create(dpy);
-	wlr_export_dmabuf_manager_v1_create(dpy);
-	wlr_screencopy_manager_v1_create(dpy);
-	wlr_ext_image_copy_capture_manager_v1_create(dpy, 1);
-	wlr_ext_output_image_capture_source_manager_v1_create(dpy, 1);
-	wlr_data_control_manager_v1_create(dpy);
-	wlr_ext_data_control_manager_v1_create(dpy, 1);
+	export_dmabuf_mgr = wlr_export_dmabuf_manager_v1_create(dpy);
+	screencopy_mgr = wlr_screencopy_manager_v1_create(dpy);
+	ext_image_copy_capture_mgr = wlr_ext_image_copy_capture_manager_v1_create(dpy, 1);
+	ext_output_image_capture_source_mgr =
+		wlr_ext_output_image_capture_source_manager_v1_create(dpy, 1);
+	data_control_mgr = wlr_data_control_manager_v1_create(dpy);
+	ext_data_control_mgr = wlr_ext_data_control_manager_v1_create(dpy, 1);
 	wlr_primary_selection_v1_device_manager_create(dpy);
 	wlr_viewporter_create(dpy);
 	wlr_single_pixel_buffer_manager_v1_create(dpy);
@@ -3561,7 +3600,8 @@ setup(void)
 	activation = wlr_xdg_activation_v1_create(dpy);
 	wl_signal_add(&activation->events.request_activate, &request_activate);
 
-	wlr_scene_set_gamma_control_manager_v1(scene, wlr_gamma_control_manager_v1_create(dpy));
+	gamma_control_mgr = wlr_gamma_control_manager_v1_create(dpy);
+	wlr_scene_set_gamma_control_manager_v1(scene, gamma_control_mgr);
 
 	power_mgr = wlr_output_power_manager_v1_create(dpy);
 	wl_signal_add(&power_mgr->events.set_mode, &output_power_mgr_set_mode);
@@ -3706,6 +3746,9 @@ setup(void)
 
 	status_event_source = wl_event_loop_add_fd(wl_display_get_event_loop(dpy),
 		STDIN_FILENO, WL_EVENT_READABLE, statusin, NULL);
+
+	security_context_mgr = wlr_security_context_manager_v1_create(dpy);
+	wl_display_set_global_filter(dpy, filterglobal, NULL);
 
 	/* Make sure XWayland clients don't connect to the parent X server,
 	 * e.g when running in the x11 backend or the wayland backend and the
