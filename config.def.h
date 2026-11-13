@@ -146,6 +146,8 @@ static const enum libinput_config_tap_button_map button_map = LIBINPUT_CONFIG_TA
 /* commands */
 static const char *termcmd[] = { "kitty", "-1", NULL };
 static const char *menucmd[] = { "wmenu-run", NULL };
+/* input method (IME) command, example: { "fcitx5", NULL } */
+static const char *imecmd[] = { NULL };
 
 static const Key keys[] = {
 	/* modifier                  key                  function          argument */

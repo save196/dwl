@@ -11,6 +11,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/socket.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -371,6 +372,7 @@ static void destroybackend(struct wl_listener *listener, void *data);
 static void destroydecoration(struct wl_listener *listener, void *data);
 static void destroydrag(struct wl_listener *listener, void *data);
 static void destroyidleinhibitor(struct wl_listener *listener, void *data);
+static void destroyimeclient(struct wl_listener *listener, void *data);
 static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroylock(SessionLock *lock, int unlocked);
 static void destroylocksurface(struct wl_listener *listener, void *data);
@@ -448,6 +450,7 @@ static void setup(void);
 static struct wlr_scene_node *snapshot(struct wlr_scene_node *node,
 		struct wlr_scene_tree *parent, void *data);
 static void spawn(const Arg *arg);
+static void spawnime(void);
 static void startdrag(struct wl_listener *listener, void *data);
 static int statusin(int fd, unsigned int mask, void *data);
 static void surfacepos(struct wlr_surface *surface, int *x, int *y);
@@ -527,6 +530,7 @@ static struct wlr_output_power_manager_v1 *power_mgr;
 static struct wlr_ext_foreign_toplevel_list_v1 *foreign_toplevel_list;
 static struct wlr_ext_foreign_toplevel_image_capture_source_manager_v1 *ext_foreign_toplevel_image_capture_source_manager_v1;
 static struct wlr_security_context_manager_v1 *security_context_mgr;
+static struct wl_client *ime_client;
 static struct wlr_screencopy_manager_v1 *screencopy_mgr;
 static struct wlr_ext_image_copy_capture_manager_v1 *ext_image_copy_capture_mgr;
 static struct wlr_ext_output_image_capture_source_manager_v1 *ext_output_image_capture_source_mgr;
@@ -601,6 +605,7 @@ static struct wl_listener tablet_tool_button = {.notify = tablettoolbutton};
 static struct wl_listener tablet_tool_proximity = {.notify = tablettoolproximity};
 static struct wl_listener tablet_tool_tip = {.notify = tablettooltip};
 static struct wl_listener gpu_reset = {.notify = gpureset};
+static struct wl_listener ime_client_destroy = {.notify = destroyimeclient};
 static struct wl_listener layout_change = {.notify = updatemons};
 static struct wl_listener new_idle_inhibitor = {.notify = createidleinhibitor};
 static struct wl_listener new_input_device = {.notify = inputdevice};
@@ -1929,6 +1934,13 @@ destroyidleinhibitor(struct wl_listener *listener, void *data)
 }
 
 void
+destroyimeclient(struct wl_listener *listener, void *data)
+{
+	wl_list_remove(&ime_client_destroy.link);
+	ime_client = NULL;
+}
+
+void
 destroylayersurfacenotify(struct wl_listener *listener, void *data)
 {
 	LayerSurface *l = wl_container_of(listener, l, destroy);
@@ -2132,6 +2144,10 @@ dirtomon(enum wlr_direction dir)
 bool
 filterglobal(const struct wl_client *client, const struct wl_global *global, void *data)
 {
+	/* Only the client started by spawnime() can be the input method */
+	if (global == input_method_manager->global)
+		return client == ime_client;
+
 	/* Only sandboxed clients (e.g. Flatpak apps) are restricted */
 	if (!wlr_security_context_manager_v1_lookup_client(security_context_mgr, client))
 		return true;
@@ -2152,7 +2168,6 @@ filterglobal(const struct wl_client *client, const struct wl_global *global, voi
 		&& global != gamma_control_mgr->global
 		&& global != layer_shell->global
 		&& global != session_lock_mgr->global
-		&& global != input_method_manager->global
 		&& global != shortcuts_inhibit_mgr->global;
 }
 
@@ -3296,6 +3311,7 @@ run(char *startup_cmd)
 			die("startup: execl:");
 		}
 	}
+	spawnime();
 
 	/* Mark stdout as non-blocking to avoid the startup script
 	 * causing dwl to freeze when a user neither closes stdin
@@ -3832,6 +3848,38 @@ spawn(const Arg *arg)
 		execvp(((char **)arg->v)[0], (char **)arg->v);
 		die("dwl: execvp %s failed:", ((char **)arg->v)[0]);
 	}
+}
+
+void
+spawnime(void)
+{
+	int sv[2];
+	char fd[12];
+
+	if (!imecmd[0])
+		return;
+
+	/* Create the connection of the input method and keep its client */
+	if (socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, sv) < 0)
+		return;
+	if (!(ime_client = wl_client_create(dpy, sv[0]))) {
+		close(sv[0]);
+		close(sv[1]);
+		return;
+	}
+	wl_client_add_destroy_listener(ime_client, &ime_client_destroy);
+
+	if (fork() == 0) {
+		/* Pass the other end to the command in WAYLAND_SOCKET */
+		fcntl(sv[1], F_SETFD, 0);
+		snprintf(fd, sizeof(fd), "%d", sv[1]);
+		setenv("WAYLAND_SOCKET", fd, 1);
+		dup2(STDERR_FILENO, STDOUT_FILENO);
+		setsid();
+		execvp(imecmd[0], (char **)imecmd);
+		die("dwl: execvp %s failed:", imecmd[0]);
+	}
+	close(sv[1]);
 }
 
 void
