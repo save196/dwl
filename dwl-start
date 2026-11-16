@@ -1,0 +1,15 @@
+#!/bin/sh
+
+[ -f "$HOME/.profile" ] && . "$HOME/.profile"
+
+export XDG_CURRENT_DESKTOP=dwl
+export SDL_VIDEODRIVER="wayland,x11"
+export QT_QPA_PLATFORM=wayland
+
+autostart="$HOME/.local/share/dwl/autostart.sh"
+
+if [ -x "$autostart" ]; then
+    dwlblocks | dwl -s "'$autostart'"
+else
+    dwlblocks | dwl
+fi

@@ -60,7 +60,7 @@ clean:
 dist: clean
 	mkdir -p dwl-$(VERSION)
 	cp -R LICENSE* Makefile CHANGELOG.md README.md client.h config.def.h \
-		config.mk protocols dwl.1 dwl.c ime.h util.h dwl.desktop \
+		config.mk protocols dwl.1 dwl.c ime.h util.h dwl.desktop dwl-start \
 		dwl-$(VERSION)
 	tar -caf dwl-$(VERSION).tar.gz dwl-$(VERSION)
 	rm -rf dwl-$(VERSION)
@@ -70,6 +70,8 @@ install: dwl
 	rm -f $(DESTDIR)$(PREFIX)/bin/dwl
 	cp -f dwl $(DESTDIR)$(PREFIX)/bin
 	chmod 755 $(DESTDIR)$(PREFIX)/bin/dwl
+	cp -f dwl-start $(DESTDIR)$(PREFIX)/bin
+	chmod 755 $(DESTDIR)$(PREFIX)/bin/dwl-start
 	mkdir -p $(DESTDIR)$(MANDIR)/man1
 	cp -f dwl.1 $(DESTDIR)$(MANDIR)/man1
 	chmod 644 $(DESTDIR)$(MANDIR)/man1/dwl.1
@@ -77,5 +79,6 @@ install: dwl
 	cp -f dwl.desktop $(DESTDIR)/usr/share/wayland-sessions/dwl.desktop
 	chmod 644 $(DESTDIR)/usr/share/wayland-sessions/dwl.desktop
 uninstall:
-	rm -f $(DESTDIR)$(PREFIX)/bin/dwl $(DESTDIR)$(MANDIR)/man1/dwl.1 \
+	rm -f $(DESTDIR)$(PREFIX)/bin/dwl $(DESTDIR)$(PREFIX)/bin/dwl-start \
+		$(DESTDIR)$(MANDIR)/man1/dwl.1 \
 		$(DESTDIR)/usr/share/wayland-sessions/dwl.desktop
