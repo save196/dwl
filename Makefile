@@ -57,6 +57,12 @@ config.h:
 clean:
 	rm -f dwl *.o *-protocol.h
 
+WLROOTS_VERSION = 0.20.2
+
+ubuntu:
+	$$(command -v podman || command -v docker) build \
+		--build-arg WLROOTS_VERSION=$(WLROOTS_VERSION) --output . .
+
 dist: clean
 	mkdir -p dwl-$(VERSION)
 	cp -R LICENSE* Makefile CHANGELOG.md README.md client.h config.def.h \
