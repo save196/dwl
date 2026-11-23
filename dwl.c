@@ -4512,6 +4512,10 @@ unmapnotify(struct wl_listener *listener, void *data)
 		wl_list_remove(&c->link);
 		setmon(c, NULL, 0);
 		wl_list_remove(&c->flink);
+#ifdef XWAYLAND
+		if (client_is_x11(c))
+			wlr_xwayland_surface_set_maximized(c->surface.xwayland, 0, 0);
+#endif
 	} else if (client_wants_focus(c)) {
 		focusclient(focustop(selmon), NULL, 1);
 	}
