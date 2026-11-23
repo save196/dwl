@@ -675,6 +675,14 @@ applybounds(Client *c, struct wlr_box *bbox)
 
 	if (!c->isfullscreen) {
 		struct wlr_box min = {0}, max = {0};
+		if (c->geom.width >= bbox->width) {
+			c->geom.width = bbox->width;
+			c->geom.x = bbox->x;
+		}
+		if (c->geom.height >= bbox->height) {
+			c->geom.height = bbox->height;
+			c->geom.y = bbox->y;
+		}
 		client_get_size_hints(c, &max, &min);
 		c->geom.width = MAX(min.width + 2 * (int)c->bw, c->geom.width);
 		c->geom.height = MAX(min.height + 2 * (int)c->bw, c->geom.height);
