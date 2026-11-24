@@ -4916,6 +4916,9 @@ activatex11(struct wl_listener *listener, void *data)
 		return;
 	}
 
+	if (VISIBLEON(c, c->mon))
+		return;
+
 	c->isurgent = 1;
 	drawbars();
 
