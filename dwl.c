@@ -137,10 +137,7 @@ typedef struct {
 	struct wlr_ext_foreign_toplevel_handle_v1 *foreign_toplevel_handle;
 	struct wlr_scene *image_capture_scene;
 	struct wlr_ext_image_capture_source_v1 *image_capture_source;
-	union {
-		struct wlr_scene_tree *image_capture_tree;
-		struct wlr_scene_surface *image_capture_scene_surface;
-	} capture;
+	struct wlr_scene_tree *image_capture_tree;
 	struct wl_listener commit;
 	struct wl_listener map;
 	struct wl_listener maximize;
@@ -585,6 +582,7 @@ applygeom(Client *c)
 
 	client_get_clip(c, &clip);
 	wlr_scene_subsurface_tree_set_clip(&c->scene_surface->node, &clip);
+	wlr_scene_subsurface_tree_set_clip(&c->image_capture_tree->node, &clip);
 }
 
 void
@@ -2145,12 +2143,9 @@ mapnotify(struct wl_listener *listener, void *data)
 	c->foreign_toplevel_handle->data = c;
 	c->image_capture_scene = wlr_scene_create();
 	c->image_capture_scene->restack_xwayland_surfaces = 0;
-	if (c->type == XDGShell)
-		c->capture.image_capture_tree = wlr_scene_xdg_surface_create(&c->image_capture_scene->tree, c->surface.xdg);
-#ifdef XWAYLAND
-	else
-		c->capture.image_capture_scene_surface = wlr_scene_surface_create(&c->image_capture_scene->tree, c->surface.xwayland->surface);
-#endif
+	c->image_capture_tree = c->type == XDGShell
+			? wlr_scene_xdg_surface_create(&c->image_capture_scene->tree, c->surface.xdg)
+			: wlr_scene_subsurface_tree_create(&c->image_capture_scene->tree, client_surface(c));
 
 
 	/* Set initial monitor, tags, floating status, and focus:
@@ -3472,16 +3467,10 @@ unmapnotify(struct wl_listener *listener, void *data)
 		wlr_ext_foreign_toplevel_handle_v1_destroy(c->foreign_toplevel_handle);
 		c->foreign_toplevel_handle = NULL;
 	}
-#ifdef XWAYLAND
-	if (c->type != XDGShell && c->capture.image_capture_scene_surface) {
-		wlr_scene_node_destroy(&c->capture.image_capture_scene_surface->buffer->node);
-		c->capture.image_capture_scene_surface = NULL;
-	}
-#endif
-
 	wlr_scene_node_destroy(&c->image_capture_scene->tree.node);
 	c->image_capture_scene = NULL;
 	c->image_capture_source = NULL;
+	c->image_capture_tree = NULL;
 	wlr_scene_node_destroy(&c->scene->node);
 	client_surface(c)->data = NULL;
 	c->snapshot = NULL;
