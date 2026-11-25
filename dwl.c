@@ -329,6 +329,7 @@ static void arrange(Monitor *m);
 static void arrangelayer(Monitor *m, struct wl_list *list,
 		struct wlr_box *usable_area, int exclusive);
 static void arrangelayers(Monitor *m);
+static int asleep(void);
 static void assignkeymap(struct wlr_keyboard *keyboard);
 static void axisnotify(struct wl_listener *listener, void *data);
 static bool baracceptsinput(struct wlr_scene_buffer *buffer, double *sx, double *sy);
@@ -904,6 +905,20 @@ arrangelayers(Monitor *m)
 	}
 }
 
+int
+asleep(void)
+{
+	Monitor *m;
+	int off = 0;
+
+	wl_list_for_each(m, &mons, link) {
+		if (m->wlr_output->enabled)
+			return 0;
+		off |= m->asleep;
+	}
+	return off;
+}
+
 void
 assignkeymap(struct wlr_keyboard *keyboard) {
 	FILE *f;
@@ -945,6 +960,9 @@ axisnotify(struct wl_listener *listener, void *data)
 	uint32_t mods;
 
 	wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
+
+	if (asleep())
+		return;
 
 	if (!locked) {
 		if (event->orientation == WL_POINTER_AXIS_VERTICAL_SCROLL)
@@ -1068,6 +1086,17 @@ buttonpress(struct wl_listener *listener, void *data)
 	const Button *b;
 
 	wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
+
+	/* Ignore presses while the monitors are off */
+	if (event->state == WL_POINTER_BUTTON_STATE_PRESSED && asleep()) {
+		if (event->button < LENGTH(consumed))
+			consumed[event->button] = 1;
+		return;
+	}
+	if (event->button < LENGTH(consumed) && consumed[event->button]) {
+		consumed[event->button] = 0;
+		return;
+	}
 
 	click = ClkRoot;
 	xytonode(cursor->x, cursor->y, NULL, &c, NULL, NULL, NULL);
@@ -2558,6 +2587,13 @@ keypress(struct wl_listener *listener, void *data)
 	group->mods = wlr_keyboard_get_modifiers(&group->wlr_group->keyboard);
 
 	wlr_idle_notifier_v1_notify_activity(idle_notifier, seat);
+
+	/* Ignore presses while the monitors are off */
+	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED && asleep()) {
+		if (event->keycode < LENGTH(consumed))
+			consumed[event->keycode] = 1;
+		return;
+	}
 
 	/* On _press_, process compositor keybindings.
 	 * When locked, only allow selected media keys. */
