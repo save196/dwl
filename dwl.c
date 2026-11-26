@@ -1498,6 +1498,7 @@ commitpopup(struct wl_listener *listener, void *data)
 {
 	struct wlr_surface *surface = data;
 	struct wlr_xdg_popup *popup = wlr_xdg_popup_try_from_wlr_surface(surface);
+	struct wlr_xdg_surface *parent;
 	Popup *p = wl_container_of(listener, p, commit);
 	LayerSurface *l = NULL;
 	Client *c = NULL;
@@ -1518,6 +1519,13 @@ commitpopup(struct wl_listener *listener, void *data)
 	}
 	popup->base->surface->data = wlr_scene_xdg_surface_create(
 			popup->parent->data, popup->base);
+	/* Show the popup in the captures of its toplevel */
+	if (c) {
+		parent = wlr_xdg_surface_try_from_wlr_surface(popup->parent);
+		popup->base->data = wlr_scene_xdg_surface_create(
+				parent->role == WLR_XDG_SURFACE_ROLE_POPUP ? parent->data
+				: &c->image_capture_scene->tree, popup->base);
+	}
 	box = type == LayerShell ? l->mon->m : c->mon->w;
 	box.x -= (type == LayerShell ? l->scene->node.x : c->geom.x - c->surface.xdg->geometry.x);
 	box.y -= (type == LayerShell ? l->scene->node.y : c->geom.y - c->surface.xdg->geometry.y);
